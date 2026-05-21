@@ -1,0 +1,22 @@
+bundle:
+  name: {{DATA_PRODUCT_ID}}
+
+variables:
+  catalog:
+    description: Unity Catalog catalog the pipeline writes to.
+    default: {{CATALOG}}
+  schema:
+    description: Unity Catalog schema the pipeline writes to.
+    default: {{SCHEMA}}
+  notifications_email:
+    description: Email address for pipeline failure notifications.
+    default: ""
+
+include:
+  - resources/*.yml
+
+targets:
+  default:
+    mode: development
+    workspace:
+      host: ${DATABRICKS_HOST}

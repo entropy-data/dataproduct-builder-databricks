@@ -1,0 +1,18 @@
+[project]
+name = "{{DATA_PRODUCT_ID}}"
+version = "0.1.0"
+description = "{{PURPOSE}}"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "datacontract-cli[all]",
+    "entropy-data",
+    "pytest",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

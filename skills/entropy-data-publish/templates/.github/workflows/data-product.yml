@@ -1,0 +1,52 @@
+name: data-product
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      ENTROPY_DATA_API_KEY: ${{ secrets.ENTROPY_DATA_API_KEY }}
+      ENTROPY_DATA_HOST: "{{API_HOST}}"
+      DATACONTRACT_DATABRICKS_TOKEN: ${{ secrets.DATACONTRACT_DATABRICKS_TOKEN }}
+      DATACONTRACT_DATABRICKS_HTTP_PATH: ${{ secrets.DATACONTRACT_DATABRICKS_HTTP_PATH }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: databricks/setup-cli@main
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install CLIs
+        run: |
+          uv tool install entropy-data
+          uv tool install 'datacontract-cli[all]'
+
+      - name: Validate bundle
+        run: databricks bundle validate --target default
+
+      - name: Deploy bundle
+        run: databricks bundle deploy --target default
+
+      - name: Run Lakeflow pipeline
+        run: databricks bundle run {{DATA_PRODUCT_ID}} --target default
+
+      - name: Test data contract
+        run: |
+          datacontract test {{CONTRACT_PATH}} \
+            --server production \
+            --logs \
+            --publish "$ENTROPY_DATA_HOST/test-results"
+
+      - name: Publish data contract
+        run: entropy-data datacontracts put {{CONTRACT_ID}} --file {{CONTRACT_PATH}}
+
+      - name: Publish data product
+        run: entropy-data dataproducts put {{DATA_PRODUCT_ID}} --file {{ODPS_FILE}}

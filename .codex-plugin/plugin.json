@@ -1,0 +1,31 @@
+{
+  "name": "dataproduct-builder-databricks",
+  "version": "0.1.0",
+  "description": "Build data products on Databricks with Declarative Automation Bundles and Lakeflow.",
+  "author": {
+    "name": "Entropy Data",
+    "url": "https://entropy-data.com"
+  },
+  "homepage": "https://github.com/entropy-data/dataproduct-builder-databricks",
+  "repository": "https://github.com/entropy-data/dataproduct-builder-databricks",
+  "license": "MIT",
+  "keywords": ["databricks", "asset-bundles", "lakeflow", "data-product", "data-contract", "entropy-data", "odcs", "odps", "unity-catalog"],
+  "interface": {
+    "displayName": "Data Product Builder for Databricks",
+    "shortDescription": "Build Databricks data products integrated with Entropy Data.",
+    "longDescription": "Coding-agent plugin for the full data-product lifecycle on Databricks: scaffold a Declarative Automation Bundle with a Lakeflow Spark Declarative Pipeline, implement output-port @dp.table models from a published ODCS data contract, deploy and run via the Databricks CLI, apply Unity Catalog grants and Delta Sharing for approved consumers, edit and test contracts, upload sample data, and publish ODPS/ODCS back to Entropy Data via CI. Ships nine skills and an ODCS-lint hook.",
+    "developerName": "Entropy Data",
+    "category": "Data",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://entropy-data.com",
+    "defaultPrompt": [
+      "Initialize a new Databricks data product for Entropy Data.",
+      "Implement the data product https://app.entropy-data.com/<org>/dataproducts/<id>.",
+      "Deploy and run the Lakeflow pipeline for this data product.",
+      "Grant access to the approved consumers of this data product.",
+      "Update the data contract and run the contract tests."
+    ]
+  },
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
+}

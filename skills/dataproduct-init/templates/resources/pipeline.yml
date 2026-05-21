@@ -1,0 +1,14 @@
+resources:
+  pipelines:
+    {{DATA_PRODUCT_ID}}:
+      name: {{DATA_PRODUCT_NAME}}
+      serverless: true
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      channel: PREVIEW
+      development: true
+      libraries:
+        - glob:
+            include: ../src/**/*.py
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src

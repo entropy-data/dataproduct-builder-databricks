@@ -1,0 +1,13 @@
+{
+  "name": "dataproduct-builder-databricks",
+  "version": "0.1.0",
+  "description": "Build data products on Databricks with Declarative Automation Bundles and Lakeflow Spark Declarative Pipelines, integrated with Entropy Data.",
+  "author": {
+    "name": "Entropy Data",
+    "url": "https://entropy-data.com"
+  },
+  "homepage": "https://github.com/entropy-data/dataproduct-builder-databricks",
+  "repository": "https://github.com/entropy-data/dataproduct-builder-databricks",
+  "license": "MIT",
+  "keywords": ["databricks", "asset-bundles", "lakeflow", "data-product", "data-contract", "entropy-data", "odcs", "odps", "unity-catalog"]
+}

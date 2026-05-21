@@ -1,0 +1,16 @@
+resources:
+  jobs:
+    {{DATA_PRODUCT_ID}}_scheduled:
+      name: "{{DATA_PRODUCT_NAME}} — scheduled refresh"
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: run_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.{{DATA_PRODUCT_ID}}.id}
+            full_refresh: false
+      email_notifications:
+        on_failure:
+          - ${var.notifications_email}

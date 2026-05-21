@@ -1,0 +1,10 @@
+.databricks/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+.vscode/
+*.swp
+examples/
+test-results/
