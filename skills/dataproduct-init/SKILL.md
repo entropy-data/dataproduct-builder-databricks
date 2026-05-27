@@ -188,17 +188,60 @@ After both skills have run, end with this two-part recap. Use the same `Status` 
 | Output-port ODCS files (from draft) | … | only when initialized from existing draft: `<N>` file(s) under `src/output_ports/v<N>/`, or `skipped` if no contracts were linked |
 | `entropy-data-publish` handoff | … | "ran" / "skipped" — see publish's own report for ODPS/ODCS/workflow rows |
 
-**Part 2 — next steps.** Bullet list, include only what applies:
+**Part 2 — next steps.** This is the canonical "scaffold → wired pipeline" loop (see AGENTS.md § Lifecycle). Print the literal commands the user can copy-paste, substituting concrete values. Include only the items that apply.
 
-- `uv venv && source .venv/bin/activate && uv pip install --group dev`
-- `git init && git add . && git commit -m "Initial commit"` (if the directory is not already a git repo).
-- Create a GitHub repo and push; set the secrets called out by the publish skill. Recommended CI auth is OAuth M2M (`DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `DATABRICKS_CLIENT_SECRET`) — PAT (`DATABRICKS_TOKEN`) still works but is the older path. Also set `ENTROPY_DATA_API_KEY`.
-- Before first deploy to `prod`: edit `databricks.yml` to replace `run_as.service_principal_name: <fill-in-before-prod-deploy>` with the CI service principal's application id, and adjust `workspace.root_path` if `/Workspace/Shared/` is not writable for that SP.
-- Fill in the data contract schema in `src/output_ports/v1/<CONTRACT_FILE>`.
-- Run `dataproduct-implement <data-product-url-or-id>` to derive output-port table definitions from the contract.
-- Any deferred items surfaced by the publish skill's report (e.g. git connections to register after the first CI publish).
+> The commands below use `gh` (GitHub CLI) and a `.github/workflows/` CI surface — the plugin's default shape. **Forks** for organizations on GitLab / Azure DevOps / Bitbucket replace `gh` with the equivalent CLI (`glab`, `az devops`, etc.) and swap `.github/workflows/data-product.yml` for the matching pipeline format. See the upstream README's "Customization" section.
 
-If there is nothing in Part 2, write a single line: `No further action required.`
+
+```bash
+# (1) Install Python dev deps locally.
+uv venv && source .venv/bin/activate && uv pip install --group dev
+
+# (2) Create a Python stub for the output port (or run dataproduct-implement).
+#     Skip if you'll run dataproduct-implement next — it does the same thing
+#     from the data contract.
+
+# (3) Initialize VCS and push to GitHub. Adjust the org / visibility / branch
+#     to your conventions.
+git init
+git add .
+git commit -m "scaffold <DATA_PRODUCT_ID>"
+gh repo create <github-org>/<DATA_PRODUCT_ID> --private --source=. --push
+
+# (4) Set CI secrets. OAuth M2M is the recommended Databricks auth path.
+gh secret set DATABRICKS_HOST                --body "<workspace-url>"
+gh secret set DATABRICKS_CLIENT_ID           --body "<service-principal-app-id>"
+gh secret set DATABRICKS_CLIENT_SECRET       --body "<service-principal-secret>"
+gh secret set ENTROPY_DATA_API_KEY           --body "<entropy-data-api-key>"
+gh secret set DATACONTRACT_DATABRICKS_TOKEN  --body "<personal-access-token>"
+gh secret set DATACONTRACT_DATABRICKS_HTTP_PATH --body "/sql/1.0/warehouses/<warehouse-id>"
+# Prefer legacy PAT auth? Swap CLIENT_ID/CLIENT_SECRET for DATABRICKS_TOKEN
+# in .github/workflows/data-product.yml and as a single secret here.
+
+# (5) Before the first prod deploy — open databricks.yml and replace
+#     `run_as.service_principal_name: <fill-in-before-prod-deploy>` with the
+#     CI service principal's application id. Adjust `workspace.root_path` if
+#     /Workspace/Shared/ is not writable for that SP.
+
+# (6) Push to main → CI workflow runs → entropy-data dataproducts put +
+#     entropy-data datacontracts put register the records on the platform
+#     for the first time.
+
+# (7) Re-run `entropy-data-publish` from this working directory to register
+#     the git connections (it will detect the now-present platform records).
+
+# (8) Request access agreements for any upstream input ports. Look up each
+#     upstream's data product id + output port name first; --purpose is the
+#     business justification you want logged on the agreement.
+entropy-data access request <provider-dp-id> <provider-output-port-id> \
+  --consumer-dataproduct <DATA_PRODUCT_ID> \
+  --purpose "<one-sentence justification>"
+
+# (9) Once agreements are approved, re-run `dataproduct-implement` to wire
+#     the input ports into the output-port table body.
+```
+
+If there is nothing in Part 2 to print (greenfield with no scaffolding done), write a single line: `No further action required.`
 
 ## Constraints
 

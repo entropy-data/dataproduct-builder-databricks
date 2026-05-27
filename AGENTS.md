@@ -51,6 +51,26 @@ The derived id must satisfy the same Unity Catalog rules as any hand-picked id: 
 
 `dataproduct-init` Step 2b and `dataproduct-implement` Step 1 both apply this rule.
 
+## Lifecycle: from scaffold to wired pipeline
+
+A new data product reaches "input ports wired, materialized view producing rows" through this canonical loop. Skills cover the marked steps; the rest are intentionally manual (governance, user authority, or both).
+
+1. **Scaffold the bundle.** `dataproduct-init` (greenfield) or `entropy-data-publish` (audit an existing bundle).
+2. **Generate stub output ports.** `dataproduct-implement` reads the ODCS, writes `@dp.materialized_view` / `@dp.table` Python with column placeholders and a TODO body (when no input ports are yet wired).
+3. **Validate locally.** `databricks bundle validate --target dev` — built into the skills.
+4. **Set up version control + CI.** *Manual:* `git init`, `gh repo create`, `gh secret set` for each CI secret, push. The init skill emits the literal commands in its final-report next-steps.
+5. **First CI publish.** *Manual trigger (push):* CI workflow runs `entropy-data dataproducts put` and `entropy-data datacontracts put`. This is when the data product first exists on the Entropy Data platform.
+6. **Register git connections.** Re-run `entropy-data-publish` from the working directory; its Step 4b detects the now-present platform records and registers `dataproducts gitconnection put` + `datacontracts gitconnection put`.
+7. **Request access agreements for input ports.** *Manual:* `entropy-data access request <provider-dp-id> <provider-output-port-id> --consumer-dataproduct <DATA_PRODUCT_ID> --purpose "…"` for each upstream. Business judgement (purpose, port choice, roles) belongs to the user, not the skill.
+8. **Wait for approval.** *Manual + async:* the provider team approves via `entropy-data access approve <id>` or the UI.
+9. **Wire input ports.** Re-run `dataproduct-implement` — `entropy-data access list --consumer-dataproduct …` now returns active agreements, the skill caches each upstream contract under `src/input_ports/`, writes `@dp.view` wrappers, and attempts 1:1 column matching.
+10. **Build transformation logic.** *Manual coding* in `src/output_ports/v1/<table>.py` — joins, aggregations, derived columns, conditional logic. The skill marks each as `# TODO: <description from contract>`.
+11. **Deploy + run.** `dataproduct-deploy` validates, deploys, runs, and polls.
+12. **Verify against the contract.** `datacontract-test` (skill or direct CLI) — schema + quality checks against the live table.
+13. **Share with consumers.** `dataproduct-share` applies Unity Catalog `GRANT SELECT` or sets up Delta Sharing per approved consumer access agreement.
+
+Steps 4-8 are the heaviest manual stretch. Steps 4 (VCS setup) and 7 (access request) are deliberately outside skill scope: VCS has high blast radius and access decisions are governance. Each SKILL.md's final-report next-steps points back to this lifecycle so the user knows where they are in the loop.
+
 ## Conventions when running skills
 
 - **Don't skip the audit.** Skills that modify the project audit existing state first and ask the user to confirm before writing.

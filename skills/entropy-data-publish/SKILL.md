@@ -200,13 +200,56 @@ Always end with this exact two-part format so the user gets a consistent recap.
 - `deferred` — skipped intentionally (data product/contract not yet published, or no git repo). The deferred command(s) appear in Part 2.
 - `skipped` — the user declined when asked to confirm.
 
-**Part 2 — next steps.** Bullet list, only include the items that apply:
+**Part 2 — next steps.** This skill sits in the middle of the canonical lifecycle (see AGENTS.md § Lifecycle). Include only the items that apply.
 
-- For each `deferred` git connection, the exact `entropy-data dataproducts gitconnection put …` or `entropy-data datacontracts gitconnection put …` command to run after the first CI publish.
-- "Set GitHub repository secrets: `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `DATABRICKS_CLIENT_SECRET` (OAuth M2M; the workflow template uses this. If you prefer PAT, swap CLIENT_ID/CLIENT_SECRET for `DATABRICKS_TOKEN` in the workflow), `ENTROPY_DATA_API_KEY`, `DATACONTRACT_DATABRICKS_TOKEN`, `DATACONTRACT_DATABRICKS_HTTP_PATH`."
-- "Before the first prod deploy, edit `databricks.yml` to replace `run_as.service_principal_name: <fill-in-before-prod-deploy>` with the CI service principal's application id."
+> The commands below use `gh` (GitHub CLI) and a `.github/workflows/` CI surface — the plugin's default shape. **Forks** for organizations on GitLab / Azure DevOps / Bitbucket replace `gh` with the equivalent CLI (`glab`, `az devops`, etc.) and swap `.github/workflows/data-product.yml` for the matching pipeline format.
+
+
+Pre-first-CI-publish (the data product / contract do not exist on the platform yet):
+
+```bash
+# (1) Set CI secrets so the workflow can authenticate.
+gh secret set DATABRICKS_HOST                --body "<workspace-url>"
+gh secret set DATABRICKS_CLIENT_ID           --body "<service-principal-app-id>"
+gh secret set DATABRICKS_CLIENT_SECRET       --body "<service-principal-secret>"
+gh secret set ENTROPY_DATA_API_KEY           --body "<entropy-data-api-key>"
+gh secret set DATACONTRACT_DATABRICKS_TOKEN  --body "<personal-access-token>"
+gh secret set DATACONTRACT_DATABRICKS_HTTP_PATH --body "/sql/1.0/warehouses/<warehouse-id>"
+# PAT-auth alternative: swap CLIENT_ID/CLIENT_SECRET in the workflow for a
+# single DATABRICKS_TOKEN secret.
+
+# (2) Before the first prod deploy, edit databricks.yml: replace
+#     `run_as.service_principal_name: <fill-in-before-prod-deploy>` with the
+#     CI service principal's application id.
+
+# (3) Push to main → CI publishes the data product + contracts for the first
+#     time. Come back to this skill afterwards to register git connections
+#     (Step 4b reruns idempotently and registers what was deferred).
+```
+
+Post-first-CI-publish (the data product / contract now exist on the platform):
+
+```bash
+# For each `deferred` git connection from Part 1's audit, run the exact
+# command surfaced by Step 4b — example shape:
+entropy-data dataproducts gitconnection put <DATA_PRODUCT_ID> \
+  --repository-url <git-url> \
+  --repository-path <ODPS_FILE> \
+  --repository-branch <branch> \
+  --git-connection-type <github|gitlab|bitbucket|azuredevops>
+
+entropy-data datacontracts gitconnection put <CONTRACT_ID> \
+  --repository-url <git-url> \
+  --repository-path <CONTRACT_PATH> \
+  --repository-branch <branch> \
+  --git-connection-type <github|gitlab|bitbucket|azuredevops>
+```
+
+Other follow-ups:
+
 - "Fill in the data contract schema in `<CONTRACT_PATH>` — the template only seeds `id` and `updated_at`."
 - "Run `dataproduct-implement <data-product-url-or-id>` to derive output-port table definitions from the contract."
+- "Request access agreements for any upstream input ports — `entropy-data access request <provider-dp-id> <provider-output-port-id> --consumer-dataproduct <DATA_PRODUCT_ID> --purpose <one-sentence>`. Once approved, re-run `dataproduct-implement` to wire them."
 
 If there is nothing in Part 2, write a single line: `No further action required.`
 
