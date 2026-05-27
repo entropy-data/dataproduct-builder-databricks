@@ -1,6 +1,6 @@
 {
   "name": "dataproduct-builder-databricks",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Build data products on Databricks with Declarative Automation Bundles and Lakeflow.",
   "author": {
     "name": "Entropy Data",
@@ -13,7 +13,7 @@
   "interface": {
     "displayName": "Data Product Builder for Databricks",
     "shortDescription": "Build Databricks data products integrated with Entropy Data.",
-    "longDescription": "Coding-agent plugin for the full data-product lifecycle on Databricks: scaffold a Declarative Automation Bundle with a Lakeflow Spark Declarative Pipeline, implement output-port @dp.table models from a published ODCS data contract, deploy and run via the Databricks CLI, apply Unity Catalog grants and Delta Sharing for approved consumers, edit and test contracts, upload sample data, and publish ODPS/ODCS back to Entropy Data via CI. Ships nine skills and an ODCS-lint hook.",
+    "longDescription": "Coding-agent plugin for the full data-product lifecycle on Databricks: scaffold a Declarative Automation Bundle with a Lakeflow Spark Declarative Pipeline, implement output-port @dp.materialized_view / @dp.table models from a published ODCS data contract, deploy and run via the Databricks CLI, apply Unity Catalog grants and Delta Sharing for approved consumers, edit and test contracts, upload sample data, and publish ODPS/ODCS back to Entropy Data via CI. Ships nine skills and an ODCS-lint hook.",
     "developerName": "Entropy Data",
     "category": "Data",
     "capabilities": ["Read", "Write"],

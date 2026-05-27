@@ -15,8 +15,47 @@ variables:
 include:
   - resources/*.yml
 
+# Tags applied to every resource in the bundle (job, pipeline) for cost
+# attribution and discoverability in the Databricks UI.
+presets:
+  tags:
+    data_product_id: {{DATA_PRODUCT_ID}}
+
+# `workspace.host` is intentionally NOT set in this template — the Databricks
+# CLI rejects `${DATABRICKS_HOST}` interpolation for `workspace.host`
+# ("Interpolation is not supported for the field workspace.host"). Supply the
+# workspace at deploy time via one of:
+#   - DATABRICKS_HOST env var (recommended for one-off shells and CI), OR
+#   - a .databrickscfg profile selected with `--profile <name>`, OR
+#   - hardcode per target after init: `workspace.host: https://<workspace>.cloud.databricks.com`.
+
 targets:
-  default:
+  # Dev target — picked by `databricks bundle deploy` with no --target flag.
+  # `mode: development` injects: name prefix [dev <user>], dev tag,
+  # pipelines `development: true`, all schedules paused, deployment lock off,
+  # workspace.root_path scoped to the deploying user's home.
+  dev:
+    default: true
     mode: development
+
+  # Prod target — customize before first prod deploy. `mode: production`
+  # validates that workspace paths are NOT user-scoped and that `run_as`
+  # is set; the placeholder below will fail validation until you replace
+  # it with a real service principal.
+  #
+  # Recommended CI auth: OAuth M2M with a service principal. Set in CI:
+  #   DATABRICKS_HOST, DATABRICKS_CLIENT_ID, DATABRICKS_CLIENT_SECRET
+  prod:
+    mode: production
     workspace:
-      host: ${DATABRICKS_HOST}
+      # Either a shared bundle folder or the service principal's home — must
+      # NOT start with /Workspace/Users/<your-personal-email>.
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/prod
+    run_as:
+      # Service principal application id (UUID) or display name.
+      service_principal_name: <fill-in-before-prod-deploy>
+    presets:
+      pipelines_development: false
+      trigger_pause_status: UNPAUSED
+      tags:
+        env: prod

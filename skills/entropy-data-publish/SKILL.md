@@ -14,7 +14,7 @@ A bundle is well-integrated with Entropy Data when it has all of:
 | # | Artifact | Path | Purpose |
 |---|---|---|---|
 | 1 | Open Data Product Specification | `<data-product-id>.odps.yaml` at repo root | Declares the data product, team, output ports |
-| 2 | Output-port data contracts | `src/output_ports/v<N>/<contract-id>.odcs.yaml` (one per output port — what this data product **commits** to produce) | Schema + server config the contract test runs against; colocated with the `@dp.table` definition that implements it |
+| 2 | Output-port data contracts | `src/output_ports/v<N>/<contract-id>.odcs.yaml` (one per output port — what this data product **commits** to produce) | Schema + server config the contract test runs against; colocated with the `@dp.materialized_view` / `@dp.table` definition that implements it |
 | 3 | Input-port data contracts | `src/input_ports/<provider-output-port-id>.odcs.yaml` (one per active access agreement — what this data product **trusts** upstream to produce) | Cached snapshot of the upstream provider's ODCS; refreshed via `entropy-data datacontracts get`, never hand-edited |
 | 4 | Bundle layout | `src/{input_ports,transformations,output_ports/v1}/` | Convention that mirrors the data product's lifecycle |
 | 5 | Publish workflow | `.github/workflows/data-product.yml` | CI: `databricks bundle deploy` → `bundle run` → `datacontract test` → publish ODPS + output ODCS |
@@ -90,11 +90,11 @@ Before generating files, fill in these placeholders. Infer from the project wher
 |---|---|---|
 | `DATA_PRODUCT_ID` | `BUNDLE_NAME` | Used as `id` in ODPS |
 | `DATA_PRODUCT_NAME` | Title-cased `BUNDLE_NAME` | Human-friendly name |
-| `OUTPUT_PORT_NAME` | `BUNDLE_NAME` | One output port per ODCS file |
-| `CONTRACT_ID` | `<DATA_PRODUCT_ID>-v1` | Stable id used by `entropy-data datacontracts put` |
-| `CONTRACT_FILE` | `<contract_id>.odcs.yaml` | File under `src/output_ports/v1/` |
-| `CONTRACT_PATH` | `src/output_ports/v1/<CONTRACT_FILE>` | Full repo-relative path; used by `--repository-path`, the CI workflow, and `datacontract test` |
-| `TABLE` | last segment of `BUNDLE_NAME` | Output table name |
+| `OUTPUT_PORT_NAME` | If any `src/output_ports/v*/*.odcs.yaml` exists, read `schema[0].name` from it. Otherwise the last segment of `BUNDLE_NAME` | One output port per ODCS file. The port name should match the table name, not the bundle name |
+| `CONTRACT_ID` | If `src/output_ports/v*/*.odcs.yaml` exists, read its `id:` field. Otherwise `<DATA_PRODUCT_ID>-v1` | Stable id used by `entropy-data datacontracts put`. When a contract was preloaded from Entropy Data (by `dataproduct-init` or `dataproduct-implement`), do NOT mint a fresh `<DATA_PRODUCT_ID>-v1` id — use the existing one |
+| `CONTRACT_FILE` | If a preloaded ODCS exists, its filename. Otherwise `<CONTRACT_ID>.odcs.yaml` | File under `src/output_ports/v1/` |
+| `CONTRACT_PATH` | If a preloaded ODCS exists, its actual path. Otherwise `src/output_ports/v1/<CONTRACT_FILE>` | Full repo-relative path; used by `--repository-path`, the CI workflow, and `datacontract test` |
+| `TABLE` | If a preloaded ODCS exists, its `schema[0].name`. Otherwise the last segment of `BUNDLE_NAME` | Output table name |
 | `PURPOSE` | — | Ask the user (one sentence) |
 | `TEAM_NAME` | — | If `<DATA_PRODUCT_ID>.odps.yaml` already exists with a `team.name`, use that. Otherwise, prefer a team `id` registered in Entropy Data — invoke the **entropy-data-teams** skill (in this same plugin) so the user can pick from the existing teams, and use the returned `id`. Fall back to a free-text answer only if `entropy-data-teams` cannot run (CLI unavailable / not authenticated) |
 | `TAG` | — | Ask the user (e.g. a `usecases/...` slug) |
@@ -203,15 +203,16 @@ Always end with this exact two-part format so the user gets a consistent recap.
 **Part 2 — next steps.** Bullet list, only include the items that apply:
 
 - For each `deferred` git connection, the exact `entropy-data dataproducts gitconnection put …` or `entropy-data datacontracts gitconnection put …` command to run after the first CI publish.
-- "Set GitHub repository secrets: `DATABRICKS_HOST`, `DATABRICKS_TOKEN` (or configure OIDC via the `databricks/setup-cli` action), `ENTROPY_DATA_API_KEY`, `DATACONTRACT_DATABRICKS_TOKEN`, `DATACONTRACT_DATABRICKS_HTTP_PATH`."
+- "Set GitHub repository secrets: `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `DATABRICKS_CLIENT_SECRET` (OAuth M2M; the workflow template uses this. If you prefer PAT, swap CLIENT_ID/CLIENT_SECRET for `DATABRICKS_TOKEN` in the workflow), `ENTROPY_DATA_API_KEY`, `DATACONTRACT_DATABRICKS_TOKEN`, `DATACONTRACT_DATABRICKS_HTTP_PATH`."
+- "Before the first prod deploy, edit `databricks.yml` to replace `run_as.service_principal_name: <fill-in-before-prod-deploy>` with the CI service principal's application id."
 - "Fill in the data contract schema in `<CONTRACT_PATH>` — the template only seeds `id` and `updated_at`."
-- "Run `dataproduct-implement <data-product-url-or-id>` to derive `@dp.table` definitions from the contract."
+- "Run `dataproduct-implement <data-product-url-or-id>` to derive output-port table definitions from the contract."
 
 If there is nothing in Part 2, write a single line: `No further action required.`
 
 ## Conventions and constraints
 
-- **No invented schema**: when generating the ODCS file, do not invent columns. Seed it with `id` + `updated_at` and tell the user to fill in the rest, or — if `@dp.table` definitions already exist for the output port — derive columns from the decorator schema if available.
+- **No invented schema**: when generating the ODCS file, do not invent columns. Seed it with `id` + `updated_at` and tell the user to fill in the rest, or — if `@dp.materialized_view` / `@dp.table` definitions already exist for the output port — derive columns from the decorator schema if available.
 - **Idempotent**: running the skill a second time should be a no-op when everything is already present. For git connections that means: if `gitconnection get` returns a record matching the local repo URL / branch / path, do not call `put`.
 - **Don't overwrite drifted git connections silently.** If the platform reports a different URL/branch/path than the local repo, surface the diff and ask. The user may have a fork, a renamed default branch, or a deliberate path remap.
 - **Don't push secrets**: never write API keys, tokens, or workspace URLs into committed files. They must come from GitHub secrets in the workflow.

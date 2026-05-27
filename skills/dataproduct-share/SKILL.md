@@ -119,10 +119,10 @@ For each Delta Share in the plan:
    ```
 
    For Databricks-to-Databricks sharing (consumer is on Databricks), use `authentication_type: DATABRICKS` instead and pass `data_recipient_global_metastore_id` from the consumer's metastore.
-2. Ensure the share exists. `databricks shares get <share-name> -o json` — if 404, create it:
+2. Ensure the share exists. `databricks shares get <share-name> -o json` — if 404, create it (the share name is positional, not `--name`):
 
    ```
-   databricks shares create --name <share-name>
+   databricks shares create <share-name>
    ```
 
 3. Add the table to the share if not already present:
@@ -131,10 +131,10 @@ For each Delta Share in the plan:
    databricks shares update <share-name> --json '{"updates":[{"action":"ADD","data_object":{"name":"<catalog>.<schema>.<table>","data_object_type":"TABLE"}}]}'
    ```
 
-4. Grant the share to the recipient:
+4. Grant the share to the recipient. The write command is `update-permissions` (note: `shares share-permissions` is the read-only command and takes no `update` subverb):
 
    ```
-   databricks shares share-permissions update <share-name> \
+   databricks shares update-permissions <share-name> \
      --json '{"changes":[{"principal":"<recipient-name>","add":["SELECT"]}]}'
    ```
 

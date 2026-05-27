@@ -2,7 +2,7 @@
 
 Databricks data product `{{DATA_PRODUCT_ID}}`. Published to [Entropy Data](https://entropy-data.com).
 
-Built with [Declarative Automation Bundles](https://docs.databricks.com/aws/en/dev-tools/bundles/) and [Lakeflow Spark Declarative Pipelines](https://docs.databricks.com/aws/en/dlt/).
+Built with [Declarative Automation Bundles](https://docs.databricks.com/aws/en/dev-tools/bundles/) and [Lakeflow Spark Declarative Pipelines](https://docs.databricks.com/aws/en/ldp/).
 
 ## Install
 
@@ -36,10 +36,12 @@ export DATACONTRACT_DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/<warehouse-id>
 ## Run
 
 ```bash
-databricks bundle validate
-databricks bundle deploy --target default
-databricks bundle run {{DATA_PRODUCT_ID}} --target default
+databricks bundle validate --target dev
+databricks bundle deploy --target dev
+databricks bundle run {{DATA_PRODUCT_ID}} --target dev
 ```
+
+The `dev` target is the default — running `databricks bundle deploy` with no `--target` flag picks it. A `prod` target ships as a stub; edit `databricks.yml` to fill in `run_as.service_principal_name` before the first prod deploy.
 
 ## Layout
 
@@ -47,7 +49,7 @@ databricks bundle run {{DATA_PRODUCT_ID}} --target default
 src/
 ├── input_ports/        # @dp.view wrappers over upstream UC tables (one per access agreement)
 ├── transformations/    # intermediate logic (optional; user-owned)
-└── output_ports/v1/    # @dp.table — contract-governed tables (one per output port)
+└── output_ports/v1/    # @dp.materialized_view / @dp.table — contract-governed tables (one per output port)
 ```
 
 Output ports are versioned (`v1`, `v2`, ...). Each version directory holds the Python files plus the ODCS data contract that governs the schema (`<contract-id>.odcs.yaml`). Cached input-port contracts live in `src/input_ports/` next to their `.py` source.

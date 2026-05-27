@@ -11,7 +11,7 @@ When a user request matches a skill's trigger, **read the corresponding `SKILL.m
 | When the user asks about… | Follow this skill |
 |---|---|
 | Scaffolding a brand-new Databricks data product from scratch (greenfield, empty directory) | `skills/dataproduct-init/SKILL.md` |
-| Implementing a data product from a published Entropy Data URL or id — derive `@dp.table` pipelines from the ODCS schema | `skills/dataproduct-implement/SKILL.md` |
+| Implementing a data product from a published Entropy Data URL or id — derive `@dp.materialized_view` / `@dp.table` pipelines from the ODCS schema | `skills/dataproduct-implement/SKILL.md` |
 | Validating, deploying, and running the bundle's Lakeflow pipeline (`databricks bundle deploy` + `databricks bundle run`) | `skills/dataproduct-deploy/SKILL.md` |
 | Granting access to approved consumers — Unity Catalog `GRANT SELECT` (internal) or Delta Sharing (external) | `skills/dataproduct-share/SKILL.md` |
 | Auditing an existing Databricks bundle against the Entropy Data layout and adding what's missing (ODPS, ODCS, CI workflow, git connections) | `skills/entropy-data-publish/SKILL.md` |
@@ -33,6 +33,23 @@ The skill files reference `${PLUGIN_ROOT}` to locate `templates/`. On Claude Cod
 - **`datacontract`** ([Data Contract CLI](https://github.com/datacontract/datacontract-cli); install with `uv tool install 'datacontract-cli[all]'`) — used to lint ODCS files (via PostToolUse hook), test schema and quality rules against the warehouse, and classify edits as breaking or additive.
 
 If any CLI is missing, surface the install instruction and stop — do not try to install on the user's behalf without confirmation.
+
+## Conventions for derived values
+
+### Deriving `DATA_PRODUCT_ID` from a contract id
+
+When a skill is given a published data contract id (not a data product id) — e.g. the user spec'd the schema first in the contract editor and there is no draft data product yet — derive the bundle / data product id from the contract id by:
+
+1. Stripping a trailing version suffix `-v\d+` (or `_v\d+`).
+2. Lowercasing.
+3. Replacing `-` with `_`.
+4. Prepending `dp_` if not already present.
+
+Example: `entropydata-customer-onboarding-v1` → `dp_entropydata_customer_onboarding`.
+
+The derived id must satisfy the same Unity Catalog rules as any hand-picked id: lowercase, snake_case, no hyphens. Confirm with the user before using it as the bundle name.
+
+`dataproduct-init` Step 2b and `dataproduct-implement` Step 1 both apply this rule.
 
 ## Conventions when running skills
 

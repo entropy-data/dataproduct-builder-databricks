@@ -1,6 +1,6 @@
 # dataproduct-builder-databricks
 
-Skills for your favorite coding agent that build data products on **Databricks** with [Declarative Automation Bundles](https://docs.databricks.com/aws/en/dev-tools/bundles/) and [Lakeflow Spark Declarative Pipelines](https://docs.databricks.com/aws/en/dlt/), integrated with [Entropy Data](https://entropy-data.com).
+Skills for your favorite coding agent that build data products on **Databricks** with [Declarative Automation Bundles](https://docs.databricks.com/aws/en/dev-tools/bundles/) and [Lakeflow Spark Declarative Pipelines](https://docs.databricks.com/aws/en/ldp/), integrated with [Entropy Data](https://entropy-data.com).
 
 Sibling plugin to [dataproduct-builder-dbt](https://github.com/entropy-data/dataproduct-builder-dbt). Pick the one that matches your stack.
 

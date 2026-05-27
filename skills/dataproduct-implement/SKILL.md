@@ -1,6 +1,6 @@
 ---
 name: dataproduct-implement
-description: Given an Entropy Data data product URL or id, fetch its data contracts (output port ODCS files written next to the Python under src/output_ports/v<N>/, input port ODCS files cached next to their Spark reader under src/input_ports/), translate the schema into Lakeflow @dp.table Python pipelines, and ensure the project has the publishing layer (ODPS, GitHub Actions). Trigger when the user asks to "implement the data product <url>", "build the Lakeflow pipeline for this data product", or "scaffold @dp.table from a data contract".
+description: Given an Entropy Data data product URL or id, fetch its data contracts (output port ODCS files written next to the Python under src/output_ports/v<N>/, input port ODCS files cached next to their Spark reader under src/input_ports/), translate the schema into Lakeflow @dp.materialized_view / @dp.table Python pipelines, and ensure the project has the publishing layer (ODPS, GitHub Actions). Trigger when the user asks to "implement the data product <url>", "build the Lakeflow pipeline for this data product", or "scaffold output-port tables from a data contract".
 ---
 
 # Implement a data product from its data contract
@@ -11,7 +11,7 @@ Turn an Entropy Data data product into a working Lakeflow Spark Declarative Pipe
 
 - **Empty directory, no bundle yet** → run `dataproduct-init` first, then come back here.
 - **Existing bundle, need ODPS/ODCS/CI scaffolding only** → use `entropy-data-publish` instead.
-- **Existing bundle, want to derive `@dp.table` definitions from a published data contract** → this skill.
+- **Existing bundle, want to derive output-port table definitions from a published data contract** → this skill.
 
 ## How to run this skill
 
@@ -26,7 +26,7 @@ Before running Step 0, print this plan to the user verbatim:
 > 2. Resolve the data product by id or URL (`entropy-data dataproducts get`).
 > 3. Fetch each selected output port's data contract (`entropy-data datacontracts get`) and save it next to the Python it governs, under `src/output_ports/v<N>/`.
 > 4. Validate the contract against Unity Catalog conventions (lowercase identifier folding). If fixable bugs are found, offer to patch and publish the corrected contract back to Entropy Data.
-> 5. Translate the ODCS schema into `@dp.table` Python files under `src/output_ports/v1/` (column list, types, quality expectations).
+> 5. Translate the ODCS schema into Lakeflow Python files under `src/output_ports/v1/` — `@dp.materialized_view` for batch bodies (the default; the placeholder body and the typical UC-table-to-UC-table wiring are both batch), `@dp.table` only when the body uses `spark.readStream.table(...)`. Lists columns, types, and quality expectations.
 > 6. Implement the pipeline bodies: cache each upstream contract under `src/input_ports/<provider-op-id>.odcs.yaml` as a trust snapshot, write `@dp.view` wrappers that read the upstream UC tables, and project from input columns to output columns (with confirmation; complex joins left as TODOs).
 > 7. Stamp the data product on Entropy Data with the `dataProductBuilder` customProperty so the platform knows it is managed by this builder.
 > 8. Hand off to `entropy-data-publish` to add any missing publishing artifacts (ODPS, GitHub Actions).
@@ -55,7 +55,14 @@ Run `entropy-data dataproducts get <id> -o yaml`. Remember the response as `DATA
 
 If the data product has more than one output port, ask the user which one(s) to implement in this run. Default to all.
 
-If the data product does not exist in Entropy Data, ask the user if they want to create a new one.
+If `entropy-data dataproducts get <id>` 404s, try `entropy-data datacontracts get <id> -o yaml` next — the user may have given a contract id instead of a data product id (common when the spec started in the contract editor). If the contract resolves, treat the data product as not-yet-on-platform:
+
+1. Remember the response as `CONTRACT` and derive `DATA_PRODUCT_ID` per the rule in AGENTS.md § Deriving `DATA_PRODUCT_ID` from a contract id; confirm with the user.
+2. Treat the contract as the data product's single v1 output port. The output-port's catalog/schema/table come from `CONTRACT.servers[]` (first `type: databricks` entry) and the linked contract id is the contract's own `id`.
+3. **Skip Step 2's fetch** — the contract is already in hand. Write it to `src/output_ports/v1/<CONTRACT.id>.odcs.yaml` (if absent) and jump to Step 2.5 with `CONTRACT` already populated and `<N> = 1`.
+4. The first publish creates the data product on the platform; Step 5 detects the not-yet-on-platform state and skips the stamping push.
+
+If neither lookup succeeds, ask the user if they want to create a new data product from scratch.
 
 If any selected output port's `server.type` is not `databricks`, skip it with a warning. This plugin only generates Lakeflow code; for other platforms, use the matching builder.
 
@@ -65,7 +72,7 @@ For each selected output port, run `entropy-data datacontracts get <contract-id>
 
 The fields you need from `CONTRACT`:
 
-- the schema/models block (table name → list of fields with `type`, `required`, `unique`, `description`, `classification`, `enum`)
+- the schema/models block (table name → list of fields with `logicalType` (ODCS v3) or `type` (legacy ODCS v2), `required`, `unique`, `description`, `classification`, `enum`)
 - `servers` (so the output port's server config is consistent with the contract)
 - `terms` and `quality` rules — useful context but not required to materialize the table
 
@@ -94,22 +101,24 @@ On `n`: warn that `datacontract test` will fail on the un-normalized properties 
 
 **Output column identifier rule (applies to this step and Step 4).** Use the contract property's `name` directly as the Spark column name and the SQL alias. Don't substitute `physicalName` — `datacontract test` queries by `name`. Per-warehouse case conventions are enforced by Step 2.5; this step trusts the post-validation `name`.
 
-**Pipeline module choice.** Default to `from pyspark import pipelines as dp` (Lakeflow Spark Declarative Pipelines, DBR 17.x+, pipeline channel `PREVIEW`). If the bundle's `resources/*.pipeline.yml` declares `channel: CURRENT` or is missing the channel field, fall back to `import dlt` (legacy DLT) and swap `dp.` for `dlt.` throughout. Tell the user which module was picked.
+**Pipeline module choice.** Default to `from pyspark import pipelines as dp` (Lakeflow Spark Declarative Pipelines, DBR 17.x+). The bundle template does not set `channel:` explicitly, so the default `current` channel applies — which is what docs recommend for production. To detect a legacy DLT bundle, look at the imports in any existing `src/**/*.py` file: if `import dlt` is in use, match that convention (swap `dp.` for `dlt.` throughout and emit `@dlt.table` everywhere — legacy DLT has no `materialized_view` decorator). Otherwise default to pyspark. Tell the user which module was picked.
 
 For each contract:
 
 1. Decide a Lakeflow table name. Default: the contract's schema/models key. Confirm with the user if it differs from the output-port server's table name.
 2. **Identify candidate input ports.** Run `entropy-data access list --consumer-dataproduct <DATA_PRODUCT_ID> -o json` to list the access agreements where this product is the consumer. Each entry's `provider.dataProductId` / `provider.outputPortId` is an input port this product can read. Keep only agreements with `info.active: true` (status `approved`); ignore `pending` / `rejected`. Only fall back to a broader `entropy-data search query` if the user explicitly asks. If `src/input_ports/<provider-output-port-id>.py` already exists for an agreement, treat it as authoritative and skip recreating it.
-3. Generate `src/output_ports/v1/<table>.py` — a `@dp.table` definition that lists the contract columns explicitly with `F.col(...).cast(<spark-type>).alias("<column>")`. **Leave the body's source as a TODO** with a comment listing the candidate input ports from the previous step; do not invent business logic. Prepend a module docstring so a reader of the file knows which contract governs the schema:
+3. Generate `src/output_ports/v1/<table>.py` — a `@dp.materialized_view` definition (batch body — the default for contract-driven output ports that read from other UC tables) that lists the contract columns explicitly with `F.col(...).cast(<spark-type>).alias("<column>")`. Use `@dp.table` instead only when the planned body uses `spark.readStream.table(...)` — i.e. the upstream input port is a streaming table and the consumer wants incremental append semantics. **Leave the body's source as a TODO** with a comment listing the candidate input ports from the previous step; do not invent business logic. Prepend a module docstring so a reader of the file knows which contract governs the schema:
 
    ```python
    """Governed by <contract-file>.odcs.yaml (ODCS id: <CONTRACT_ID>)."""
 
    from pyspark import pipelines as dp
-   from pyspark.sql import functions as F
+   from pyspark.sql import SparkSession, functions as F
+
+   spark: SparkSession  # injected by the Lakeflow runtime — no explicit construction needed
 
 
-   @dp.table(
+   @dp.materialized_view(
        name="<table>",
        comment="<from contract description>",
        table_properties={
@@ -118,12 +127,13 @@ For each contract:
        },
    )
    @dp.expect_or_fail("not_null_<col>", "<col> IS NOT NULL")   # one per required: true
-   @dp.expect("unique_<col>", "<col> IS NOT NULL")             # one per unique: true (logged, not enforced)
    @dp.expect_or_drop("valid_<col>", "<col> IN ('A', 'B')")    # one per enum
+   # No decorator for unique: true — Lakeflow has no per-row uniqueness predicate;
+   # `datacontract test` enforces uniqueness at the contract-test step.
    def <table>():
        # TODO: select from one of the candidate input ports listed below.
        # Candidates (active access agreements):
-       #   - dp.read("<provider_dp_id>__<provider_op_id>")
+       #   - spark.read.table("<provider_dp_id>__<provider_op_id>")
        return spark.range(0).select(
            F.col("id").cast("bigint").alias("<col>"),
            ...
@@ -134,7 +144,7 @@ For each contract:
 
 4. Map ODCS types to Spark types:
 
-| ODCS `type` | Spark / Databricks |
+| ODCS `logicalType` (or legacy `type`) | Spark / Databricks |
 |---|---|
 | `string` / `text` | `string` |
 | `integer` | `int` |
@@ -154,12 +164,12 @@ For each contract:
 | ODCS field | Decorator | Severity choice |
 |---|---|---|
 | `required: true` | `@dp.expect_or_fail("not_null_<col>", "<col> IS NOT NULL")` | Output ports fail the run (the contract test would have failed anyway); inputs use `@dp.expect_or_drop` instead so upstream nulls don't take down our pipeline |
-| `unique: true` | `@dp.expect("unique_<col>", "<col> IS NOT NULL")` | Logged only; Lakeflow doesn't enforce uniqueness at materialization. `datacontract test` enforces it at the contract-test step |
+| `unique: true` | _(no decorator)_ | Lakeflow has no per-row uniqueness predicate; `datacontract test` enforces it at the contract-test step. Do not synthesize a SQL expectation — `"<col> IS NOT NULL"` would be redundant with the required-true rule above |
 | `enum: [...]` | `@dp.expect_or_drop("valid_<col>", "<col> IN (...)")` | Drop rows with unexpected values; the contract test catches the count |
 | `minLength` / `maxLength` / `minimum` / `maximum` | `@dp.expect("...", "...")` | Logged; not all backends enforce |
 | Custom `quality:` block with SQL | `@dp.expect("<rule-name>", "<sql>")` | One decorator per rule; the SQL must be evaluable in the row context |
 
-6. Map ODCS `classification` to Unity Catalog tag application. Tags are not expressible in `@dp.table` decorators — Lakeflow doesn't accept arbitrary column tags at definition time. Emit a sibling file `resources/<DATA_PRODUCT_ID>.tags.yml` describing the tags, and add a post-pipeline task to the existing `<DATA_PRODUCT_ID>_scheduled` job that applies them via SQL:
+6. Map ODCS `classification` to Unity Catalog tag application. Tags are not expressible in `@dp.materialized_view` / `@dp.table` decorators — Lakeflow doesn't accept arbitrary column tags at definition time. Emit a sibling file `resources/<DATA_PRODUCT_ID>.tags.yml` describing the tags, and add a post-pipeline task to the existing `<DATA_PRODUCT_ID>_scheduled` job that applies them via SQL:
 
    ```yaml
    tasks:
@@ -221,15 +231,17 @@ For each output port table:
    If exactly one upstream column matches, project `F.col("<input_col>").cast("<spark_type>").alias("<output_name>")`. If multiple match, write `F.lit(None).cast("<type>").alias("<output_name>"),  # TODO: candidates: <names>`. If none match, write `F.lit(None).cast("<type>").alias("<output_name>"),  # TODO: source <description>`.
 
 3. **Write the table body.**
-   - **Single input source, columns match 1:1** → replace the TODO with `dp.read("<provider_dp_id>__<provider_op_id>")` and project each output column with `F.col("<input_col>").cast("<spark_type>").alias("<output_col>")`.
-   - **Multiple input sources** → leave the join logic as an inline TODO listing each candidate `dp.read(...)` reference and the join keys the user will need to confirm. Do not invent join predicates.
+   - **Single input source, columns match 1:1** → replace the TODO with `spark.read.table("<provider_dp_id>__<provider_op_id>")` (or `spark.readStream.table(...)` if the upstream is a streaming table and the consumer wants incremental semantics — in that case also switch the decorator to `@dp.table`). Project each output column with `F.col("<input_col>").cast("<spark_type>").alias("<output_col>")`.
+   - **Multiple input sources** → leave the join logic as an inline TODO listing each candidate `spark.read.table(...)` reference and the join keys the user will need to confirm. Do not invent join predicates.
    - **Derived / aggregated columns** (sums, ratios, windows implied by the contract description but not present in any input) → leave as `F.lit(None).cast("<type>").alias("<col>"),  # TODO: compute <description from contract>`.
 
-4. **Validate the bundle.** Run `databricks bundle validate` (cheap, no workspace roundtrip — equivalent to `dbt parse`) to catch Python syntax errors, broken `dp.read` references, and resource-graph cycles. If it fails, fix the generated code before continuing. Do not run `databricks bundle run` — that touches the workspace and is the user's call (use `dataproduct-deploy`).
+4. **Validate the bundle.** Run `databricks bundle validate --target dev` (cheap, no workspace roundtrip — equivalent to `dbt parse`) to catch Python syntax errors, broken `spark.read.table` references, and resource-graph cycles. If it fails, fix the generated code before continuing. Do not run `databricks bundle run` — that touches the workspace and is the user's call (use `dataproduct-deploy`).
 
 ### Step 5 — Stamp the data product as builder-managed
 
-Check `DATA_PRODUCT.customProperties` for an entry with `property: "dataProductBuilder"` and `value: "https://github.com/entropy-data/dataproduct-builder-databricks"`. If it is already there, skip this step.
+**If the data product was not on the platform in Step 1** (contract-first path, or both lookups 404'd), skip this step. The ODPS file that `entropy-data-publish` writes from the template already includes the `dataProductBuilder` customProperty, so the first CI publish creates the platform record with the stamp intact. There is nothing to patch.
+
+Otherwise, check `DATA_PRODUCT.customProperties` for an entry with `property: "dataProductBuilder"` and `value: "https://github.com/entropy-data/dataproduct-builder-databricks"`. If it is already there, skip this step.
 
 If missing, update the data product on Entropy Data so the platform records that it is managed by this builder. Do **not** rebuild the ODPS from a template — preserve every other field as fetched in Step 1.
 
@@ -259,14 +271,14 @@ End with this two-part recap. Use the same `Status` enum the other skills use: `
 
 | Artifact | Status | Details |
 |---|---|---|
-| Data product | already present | `<DATA_PRODUCT_ID>` — fetched from platform |
-| `dataProductBuilder` customProperty | … | "added — pushed to Entropy Data" / "already present" |
+| Data product | … | `<DATA_PRODUCT_ID>` — `already present` (resolved on platform) / `deferred` (contract-first path; created by first CI publish) |
+| `dataProductBuilder` customProperty | … | "added — pushed to Entropy Data" / "already present" / "seeded by template — first publish creates it" |
 | Output-port data contract `<CONTRACT_ID>` | … | written to `src/output_ports/v<N>/<contract_id>.odcs.yaml` |
 | Contract validation (UC convention) | … | "passed" / "normalized & republished: `<property>` × N" / "issues found, user declined fix" / "skipped (no rules for `<server-type>`)" |
 | Input-port data contracts | … | `src/input_ports/<provider-output-port-id>.odcs.yaml` — `<N>` files written / refreshed (trust snapshots, one per active access agreement) / skipped |
 | Input port `@dp.view` wrappers | … | `src/input_ports/<provider-output-port-id>.py` — `<N>` files written (one per active access agreement) / skipped |
-| `@dp.table` for `<table>` | … | `src/output_ports/v1/<table>.py` — "wired to `<view>`" / "join TODO" / "skipped per user" |
-| Quality expectations | … | `<N>` expectations generated from contract (required/unique/enum/custom) |
+| Output-port table for `<table>` | … | `src/output_ports/v1/<table>.py` — decorator (`@dp.materialized_view` / `@dp.table`), "wired to `<view>`" / "join TODO" / "skipped per user" |
+| Quality expectations | … | `<N>` expectations generated from contract (required/enum/custom; uniqueness is enforced by `datacontract test`, not as a decorator) |
 | Unity Catalog tag SQL | … | `tags/<table>.sql` — `<N>` columns tagged, post-pipeline task added to the scheduled job / "skipped (no classified columns)" |
 | `databricks bundle validate` | … | "passed" / "failed: <reason>" / "skipped" |
 | `entropy-data-publish` handoff | … | "ran" / "skipped" — see publish's own report for ODPS/workflow rows |

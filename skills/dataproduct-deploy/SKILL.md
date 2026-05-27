@@ -23,7 +23,7 @@ Before running Step 0, print this plan to the user verbatim:
 
 > Running **dataproduct-deploy**. I'll:
 > 1. Pre-checks: confirm this is a bundle and the `databricks` CLI is authenticated.
-> 2. Pick the target (`default` unless you said otherwise) and the pipeline resource to run.
+> 2. Pick the target (`dev` unless you said otherwise) and the pipeline resource to run.
 > 3. `databricks bundle validate` — fail fast if the bundle is broken.
 > 4. `databricks bundle deploy --target <target>` — upload sources and create/update workspace resources.
 > 5. `databricks bundle run <pipeline> --target <target>` — trigger an update of the Lakeflow pipeline.
@@ -40,7 +40,7 @@ Then proceed.
 
 ### Step 1 — Pick the target and pipeline
 
-- **Target.** Default to `default` (the single target in the init template). If the user named another target, use it. If the user did not specify and `databricks.yml` declares multiple targets, list them with their `mode:` and ask which one to use. **Never default to a target with `mode: production` without explicit user confirmation** — production deploys must be a deliberate choice.
+- **Target.** Default to `dev` (the `default: true` target in the init template; if a bundle still uses the legacy `default` target name, fall back to that). If the user named another target, use it. If the user did not specify and `databricks.yml` declares multiple targets, list them with their `mode:` and ask which one to use. **Never default to a target with `mode: production` without explicit user confirmation** — production deploys must be a deliberate choice.
 - **Pipeline resource.** Read `resources/*.pipeline.yml`. If exactly one pipeline is declared, use it. If multiple, list them and ask which one. Remember the resource key as `PIPELINE_KEY` (e.g. `dp_acme_customer_activity`).
 
 ### Step 2 — Validate
@@ -73,7 +73,9 @@ This triggers an update on the Lakeflow pipeline. The CLI prints the update id a
 
 Optional flags the user may ask for:
 
-- `--full-refresh` — wipes the target schema's pipeline-managed tables and re-runs from scratch. Useful when schema-evolving the contract; destructive (drops all current rows). Confirm with the user before passing this flag.
+- `--full-refresh-all` — wipes ALL of the pipeline's managed tables and re-runs the whole graph from scratch. Useful when schema-evolving the contract; destructive (drops every row in every pipeline table). Confirm with the user before passing this flag.
+- `--full-refresh <table1,table2>` — same wipe-and-recompute semantics but limited to the comma-separated table list. Use when only a subset of the contract changed shape.
+- `--refresh-all` / `--refresh <tables>` — recompute without dropping rows first. Non-destructive alternative to `--full-refresh-all` / `--full-refresh`.
 - `--restart` — cancels any in-flight update before starting a new one.
 
 If the CLI does not stream events on this version, fall through to Step 5 to poll.
@@ -119,14 +121,14 @@ End with this two-part recap. Use the same `Status` enum the other skills use: `
 - For each failed expectation, the field/rule and the corresponding ODCS line — point at `datacontract-edit` if the rule itself is wrong, or at the contract test if the data is the problem.
 - If the pipeline failed mid-flow, surface the link to the run in the Databricks UI: `https://<workspace>/#joblist/pipelines/<pipeline-id>/updates/<update-id>`.
 - If the run succeeded, suggest running `datacontract test src/output_ports/v<N>/<contract>.odcs.yaml` to confirm the published data conforms end-to-end.
-- If `--full-refresh` was used, remind the user that downstream consumers may have seen empty tables briefly during the refresh window.
+- If `--full-refresh-all` or `--full-refresh <tables>` was used, remind the user that downstream consumers may have seen empty tables briefly during the refresh window.
 
 If the run completed without errors or failed expectations, write a single line: `Pipeline <PIPELINE_KEY> ran successfully on <target>. <N> tables materialized.`
 
 ## Constraints
 
 - **No silent production deploys.** A `mode: production` target always requires explicit user confirmation, even when the user asked to deploy. The CLI's built-in confirmation handles this; do not bypass it.
-- **No `--full-refresh` without confirmation.** It drops all rows in the pipeline's target tables. Ask before passing it.
+- **No `--full-refresh-all` or `--full-refresh <tables>` without confirmation.** Both drop rows in the pipeline's managed tables (the former across the whole graph, the latter for the named tables only). Ask before passing either flag.
 - **No retries on permissions errors.** A failed deploy due to permissions or missing principals needs human intervention; retrying does not help and confuses the audit trail.
 - **No edits to bundle or pipeline code.** This skill runs the bundle as-is. If a validation error names a fixable issue in `databricks.yml` or `src/`, surface it but do not auto-edit — that's the user's call.
 - **Idempotent**: running the skill twice in succession when nothing changed redeploys (no-op upload) and runs a fresh update. The pipeline state in UC may change if upstream data changed; that is expected.

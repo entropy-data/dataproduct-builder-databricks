@@ -10,8 +10,14 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      # Databricks auth — OAuth M2M with a service principal is recommended.
+      # Set these three secrets on the GitHub repo (or org). PAT auth
+      # (DATABRICKS_TOKEN) still works but is the older path; if you'd rather
+      # use a PAT, replace the CLIENT_ID / CLIENT_SECRET lines with
+      # `DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}`.
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
       ENTROPY_DATA_API_KEY: ${{ secrets.ENTROPY_DATA_API_KEY }}
       ENTROPY_DATA_HOST: "{{API_HOST}}"
       DATACONTRACT_DATABRICKS_TOKEN: ${{ secrets.DATACONTRACT_DATABRICKS_TOKEN }}
@@ -30,13 +36,15 @@ jobs:
           uv tool install 'datacontract-cli[all]'
 
       - name: Validate bundle
-        run: databricks bundle validate --target default
+        run: databricks bundle validate --target prod
 
       - name: Deploy bundle
-        run: databricks bundle deploy --target default
+        # --auto-approve: non-interactive; CI cannot answer the "destructive change?" prompt.
+        # --fail-on-active-runs: refuse to deploy if a job or pipeline is mid-run.
+        run: databricks bundle deploy --target prod --auto-approve --fail-on-active-runs
 
       - name: Run Lakeflow pipeline
-        run: databricks bundle run {{DATA_PRODUCT_ID}} --target default
+        run: databricks bundle run {{DATA_PRODUCT_ID}} --target prod
 
       - name: Test data contract
         run: |
