@@ -6,32 +6,53 @@ Built with [Declarative Automation Bundles](https://docs.databricks.com/aws/en/d
 
 ## Install
 
+Project Python deps (including the `entropy-data` and `datacontract` CLIs):
+
 ```bash
-uv venv
-source .venv/bin/activate
-uv pip install --group dev
+uv sync
+```
+
+`uv sync` creates `.venv/` with everything from `pyproject.toml`'s `[dependency-groups].dev`. All invocations below use the venv via `uv run` — no activation needed.
+
+The Databricks CLI is installed separately (it's not a Python package). On macOS:
+
+```bash
+brew install databricks/tap/databricks
 ```
 
 ## Configure
 
-Authenticate the Databricks CLI:
+Databricks CLI auth (workspace-level, not Python — installed above):
 
 ```bash
 databricks auth login --host https://<workspace>.cloud.databricks.com
 ```
 
-Authenticate the Entropy Data CLI:
+Entropy Data CLI auth (writes to `~/.entropy-data/config.toml` — once per machine):
 
 ```bash
-entropy-data connection add default --api-key <key> --host <host>
+uv run entropy-data connection add default --api-key <key> --host <host>
 ```
 
-Set up the contract-test credentials (only needed locally; CI uses repo secrets):
+Set up the contract-test credentials (only needed locally; CI uses repo secrets — see [Publishing](#publishing)). The `datacontract` CLI is a separate tool and does not share auth state with the `databricks` CLI, so a token must be supplied explicitly.
+
+**Recommended — short-lived OAuth from the already-authenticated `databricks` CLI:**
+
+```bash
+export DATACONTRACT_DATABRICKS_TOKEN=$(databricks auth token | jq -r .access_token)
+export DATACONTRACT_DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/<warehouse-id>
+```
+
+The OAuth token is valid for ~1 hour and the literal value never lands in shell history — much smaller leak blast radius than a long-lived PAT, same workspace permissions.
+
+**Fallback — Personal Access Token**, useful when `databricks auth token` isn't available (e.g. PAT-only profile, OAuth refresh issue, headless shell):
 
 ```bash
 export DATACONTRACT_DATABRICKS_TOKEN=<personal-access-token>
 export DATACONTRACT_DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/<warehouse-id>
 ```
+
+A PAT is long-lived (until rotated). Scope it narrowly (read access to the data product's schema is enough) and avoid putting the `export` in `.bashrc`/`.zshrc` — it persists in shell history.
 
 ## Run
 
