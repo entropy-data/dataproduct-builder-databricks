@@ -55,6 +55,12 @@ The derived id must satisfy the same Unity Catalog rules as any hand-picked id: 
 
 `dataproduct-init` Step 2b and `dataproduct-implement` Step 1 both apply this rule.
 
+### Schema convention
+
+Dev and prod targets share `var.schema`; the output-port ODCS has a single `production` server pointing at the same UC location. `mode: development` isolates Lakeflow pipeline/job **names** (`[dev <user>] …`) but not the table. After a dev deploy, `datacontract test --server production` works locally.
+
+For per-developer schema isolation, deploy with `--var=schema=<your-prefix>_<schema>`. Skills should not template a per-target schema override or add extra ODCS servers — per-user customization is the user's local choice. Matches the `dataproduct-builder-dbt` sibling convention.
+
 ## Lifecycle: from scaffold to wired pipeline
 
 A new data product reaches "input ports wired, materialized view producing rows" through this canonical loop. Skills cover the marked steps; the rest are intentionally manual (governance, user authority, or both).

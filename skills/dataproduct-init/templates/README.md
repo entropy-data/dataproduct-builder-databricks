@@ -64,6 +64,16 @@ databricks bundle run {{DATA_PRODUCT_ID}} --target dev
 
 The `dev` target is the default — running `databricks bundle deploy` with no `--target` flag picks it. A `prod` target ships as a stub; edit `databricks.yml` to fill in `run_as.service_principal_name` before the first prod deploy.
 
+### Schema convention
+
+Dev and prod share `{{SCHEMA}}`. `mode: development` prefixes Lakeflow resource names (`[dev <user>] …`), not the table. Test against the table after a dev deploy with:
+
+```bash
+uv run datacontract test src/output_ports/v1/<contract-id>.odcs.yaml --server production --logs
+```
+
+For per-developer schema isolation, override at deploy time: `databricks bundle deploy --target dev --var=schema=<your-prefix>_{{SCHEMA}}` (and add a matching ODCS server entry locally if you also want `datacontract test` to work against it).
+
 ## Layout
 
 ```

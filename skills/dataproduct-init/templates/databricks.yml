@@ -33,7 +33,9 @@ targets:
   # Dev target — picked by `databricks bundle deploy` with no --target flag.
   # `mode: development` injects: name prefix [dev <user>], dev tag,
   # pipelines `development: true`, all schedules paused, deployment lock off,
-  # workspace.root_path scoped to the deploying user's home.
+  # workspace.root_path scoped to the deploying user's home. Schema is shared
+  # with prod (see README § Schema convention); override per-deploy with
+  # --var=schema=<prefix>_<schema> for per-developer isolation.
   dev:
     default: true
     mode: development
