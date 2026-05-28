@@ -42,7 +42,7 @@ Then proceed.
 
 ### Step 0 — Verify the Entropy Data CLI connection
 
-Confirm `entropy-data --version` is on PATH. If missing, tell the user to run `uv tool install entropy-data` and stop.
+Confirm `uv run --quiet entropy-data --version` succeeds from the project root. If it fails, run `uv sync` (the init template seeds `entropy-data` as a dev dep) and retry. If still missing, stop and tell the user to verify `entropy-data` is in `pyproject.toml`'s `[dependency-groups].dev`. Use `uv run entropy-data …` for every CLI invocation in this skill.
 
 Run `entropy-data connection test`. If it fails (no connection, expired key, etc.), stop and tell the user to run `entropy-data connection add <name> --host <host> --api-key <key>` first. Do not prompt for the key yourself.
 

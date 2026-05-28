@@ -57,7 +57,7 @@ Then proceed.
   - **Existing data product id/URL given** — extract the trailing id from a URL, then run `entropy-data dataproducts get <id> -o yaml`. If the lookup succeeds, remember the response as `DATA_PRODUCT` and use it in Step 2a.
   - **Existing data contract id/URL given (no draft data product yet)** — common when the user spec'd the schema first in the contract editor. Run `entropy-data datacontracts get <id> -o yaml`. If the lookup succeeds, remember the response as `CONTRACT`, treat the product as new (it will be created by the first publish), and use Step 2b to derive parameters from the contract.
   - **Unknown id type** — if the user is not sure whether they have a contract or a data product, try both lookups in order (`dataproducts get` then, on 404, `datacontracts get`). The first one that succeeds determines the path. If both 404, tell the user and ask whether to (a) try a different id, (b) proceed as new with that id, or (c) abort.
-- **Entropy Data CLI prerequisites for the lookup**: `entropy-data --version` must be on PATH and `entropy-data connection test` must succeed. If either fails, surface the error and ask the user whether to (a) fix the CLI and retry, or (b) skip the lookup and proceed as if new. Don't prompt for the API key yourself.
+- **Entropy Data CLI prerequisites for the lookup** (init is the one skill where this is global, not via the project venv — see AGENTS.md § Install pattern. The directory has no `pyproject.toml` yet, so `uv run entropy-data` is unavailable until Step 4 scaffolds the project and the user runs `uv sync`. Subsequent skills use `uv run entropy-data` exclusively.): `entropy-data --version` must be on PATH (install once with `uv tool install entropy-data` if missing) and `entropy-data connection test` must succeed. If either fails, surface the error and ask the user whether to (a) fix the CLI and retry, or (b) skip the lookup and proceed as if new. Don't prompt for the API key yourself.
 
 ### Step 2 — Gather parameters
 
@@ -183,7 +183,7 @@ After both skills have run, end with this two-part recap. Use the same `Status` 
 | `.gitignore` | … | new or merged into existing |
 | `src/` layout | … | `input_ports/`, `transformations/`, `output_ports/v1/` with `.gitkeep` placeholders |
 | `databricks bundle validate --target dev` | … | "passed" / "failed: <reason>" |
-| `prod` target customization required | deferred | `run_as.service_principal_name` ships as `<fill-in-before-prod-deploy>`; user must edit before first prod deploy. `workspace.root_path` defaults to `/Workspace/Shared/.bundle/<bundle>/prod` — change to an SP-scoped path if `/Workspace/Shared/` is not writable. |
+| `prod` target customization required | deferred | Two placeholders must be replaced before the first prod deploy: `run_as.service_principal_name: <fill-in-before-prod-deploy>` (CI service principal app id) and `variables.notifications_email.default: <set-before-prod-deploy>` (pipeline failure alert address). `workspace.root_path` defaults to `/Workspace/Shared/.bundle/<bundle>/prod` — change to an SP-scoped path if `/Workspace/Shared/` is not writable. |
 | `<DATA_PRODUCT_ID>.odps.yaml` (from draft) | … | only when initialized from existing draft: `created` (fetched) or `skipped` (fetch failed) |
 | Output-port ODCS files (from draft) | … | only when initialized from existing draft: `<N>` file(s) under `src/output_ports/v<N>/`, or `skipped` if no contracts were linked |
 | `entropy-data-publish` handoff | … | "ran" / "skipped" — see publish's own report for ODPS/ODCS/workflow rows |
@@ -218,10 +218,16 @@ gh secret set DATACONTRACT_DATABRICKS_HTTP_PATH --body "/sql/1.0/warehouses/<war
 # Prefer legacy PAT auth? Swap CLIENT_ID/CLIENT_SECRET for DATABRICKS_TOKEN
 # in .github/workflows/data-product.yml and as a single secret here.
 
-# (5) Before the first prod deploy — open databricks.yml and replace
-#     `run_as.service_principal_name: <fill-in-before-prod-deploy>` with the
-#     CI service principal's application id. Adjust `workspace.root_path` if
-#     /Workspace/Shared/ is not writable for that SP.
+# (5) Before the first prod deploy — open databricks.yml and replace these
+#     two placeholders:
+#       - `run_as.service_principal_name: <fill-in-before-prod-deploy>` →
+#         the CI service principal's application id.
+#       - `variables.notifications_email.default: <set-before-prod-deploy>` →
+#         a real address (or distribution list) for pipeline failure alerts.
+#         Required only for prod; dev deploys skip the email_notifications
+#         block. Empty / placeholder values panic the Databricks Jobs API.
+#     Also adjust `workspace.root_path` if /Workspace/Shared/ is not writable
+#     for that SP.
 
 # (6) Push to main → CI workflow runs → entropy-data dataproducts put +
 #     entropy-data datacontracts put register the records on the platform

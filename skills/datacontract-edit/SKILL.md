@@ -65,7 +65,7 @@ datacontract test src/output_ports/v<N>/<file>.odcs.yaml --server <server> --log
 
 Pre-reqs the CLI needs (verify before running, fail fast with a clear message if missing):
 
-- `datacontract` on PATH (`datacontract --version`).
+- `uv run --quiet datacontract --version` succeeds from the project root. If it fails, run `uv sync` and retry. Invoke as `uv run datacontract test …` for every CLI invocation in this skill.
 - The chosen server's credentials available as env vars per the ODCS server block (e.g. `DATACONTRACT_DATABRICKS_TOKEN` + `DATACONTRACT_DATABRICKS_HTTP_PATH` for Databricks). Tell the user which env vars are missing — do not try to source them yourself.
 
 Do **not** use the platform's server-side contract-test endpoint from this skill. The local `datacontract` CLI runs against the edited file and gives line-level failure detail; testing the published version on the server would test the *previous* contract, which defeats the point of testing the edit.

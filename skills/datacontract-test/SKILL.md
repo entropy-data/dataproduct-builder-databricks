@@ -37,7 +37,7 @@ Then proceed.
 
 ### Step 0 — Pre-checks
 
-- Confirm `datacontract --version` is on PATH. If not, stop and tell the user to install it (e.g. `uv tool install 'datacontract-cli[all]'`).
+- Confirm `uv run --quiet datacontract --version` succeeds from the project root. If it fails, run `uv sync` (the init template seeds `datacontract-cli[all]` as a dev dep in `pyproject.toml`) and retry. If `uv sync` still doesn't make it available, stop and tell the user to verify `datacontract-cli[all]` is listed in `pyproject.toml`'s `[dependency-groups].dev`. **Do not propose `uv tool install` here** — per-project venv is the convention.
 - Confirm at least one `*.odcs.yaml` exists under `src/output_ports/**/` or `src/input_ports/`. If not, stop and tell the user there's nothing to test.
 - For each contract that will run, inspect its `servers` block and list the env vars the chosen server type needs (e.g. `DATACONTRACT_DATABRICKS_TOKEN` and `DATACONTRACT_DATABRICKS_HTTP_PATH` for Databricks, `DATACONTRACT_SNOWFLAKE_USERNAME` / `..._PASSWORD` for Snowflake). If any are unset, surface the list to the user and ask whether to continue (the CLI will fail-fast on that server) or stop. Do not try to source credentials yourself.
 
@@ -61,7 +61,7 @@ For each contract in `CONTRACTS`:
 For each contract:
 
 ```
-datacontract test <path-to-contract>.odcs.yaml --server <server> --logs
+uv run datacontract test <path-to-contract>.odcs.yaml --server <server> --logs
 ```
 
 Where `<path-to-contract>` is the file resolved in Step 1 — typically `src/output_ports/v<N>/<file>.odcs.yaml` for output contracts, or `src/input_ports/<file>.odcs.yaml` for input contracts. The CLI does not care which directory; the role only matters for how Step 4 reports the result.

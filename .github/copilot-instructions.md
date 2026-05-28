@@ -28,11 +28,11 @@ The skill files reference `${PLUGIN_ROOT}` to locate `templates/`. On Claude Cod
 
 ## CLIs the skills shell out to
 
-- **`databricks`** — bundle init/validate/deploy/run, UC grants, Delta Sharing. Auth via `.databrickscfg`, env vars, or OAuth.
-- **`entropy-data`** (`uv tool install entropy-data`) — publish ODPS/ODCS, git connections, team lookup, example data, access agreement lookup.
-- **`datacontract`** (`uv tool install 'datacontract-cli[all]'`) — lint, test, breaking-change classification.
+- **`databricks`** — bundle init/validate/deploy/run, UC grants, Delta Sharing. Auth via `.databrickscfg`, env vars, or OAuth. Installed separately (e.g. `brew install databricks/tap/databricks`).
+- **`entropy-data`** — publish ODPS/ODCS, git connections, team lookup, example data, access agreement lookup. Per-project venv: listed as a dev dep in each scaffolded `pyproject.toml`; invoke as `uv run entropy-data …`. `dataproduct-init`'s lookup step is the exception (no venv yet) — a global `uv tool install entropy-data` is needed once for that.
+- **`datacontract`** — lint, test, breaking-change classification. Per-project venv: same pattern as `entropy-data`; invoke as `uv run datacontract …`. No global install path used by any skill except in the init exception above.
 
-If any CLI is missing, surface the install instruction and stop — do not try to install on the user's behalf without confirmation.
+If `uv run <cli>` fails inside a project, the fix is `uv sync`; surface that and stop. Don't propose `uv tool install` as a fallback inside a project — it defeats version pinning.
 
 ## Conventions when running skills
 

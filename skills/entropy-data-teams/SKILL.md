@@ -26,8 +26,8 @@ Then proceed.
 
 ### Step 0 — Pre-checks
 
-- `entropy-data --version` is on PATH. If not, surface the install line from the README and stop.
-- A connection / API key is configured. If `entropy-data connection list` is empty, tell the user to run `entropy-data connection add ...` first; do not try to authenticate on their behalf.
+- `uv run --quiet entropy-data --version` succeeds from the project root. If it fails, run `uv sync` and retry; if still missing, stop and surface the install line from the README. Use `uv run entropy-data …` for every CLI invocation in this skill.
+- A connection / API key is configured. If `uv run entropy-data connection list` is empty, tell the user to run `uv run entropy-data connection add ...` first; do not try to authenticate on their behalf.
 
 ### Step 1 — Fetch teams
 

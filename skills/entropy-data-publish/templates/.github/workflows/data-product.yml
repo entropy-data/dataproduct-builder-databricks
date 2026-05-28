@@ -30,10 +30,11 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
-      - name: Install CLIs
-        run: |
-          uv tool install entropy-data
-          uv tool install 'datacontract-cli[all]'
+      - name: Sync Python deps
+        # Installs entropy-data + datacontract-cli[all] (and other dev deps)
+        # into the project's .venv at the versions pinned by uv.lock. All
+        # `uv run …` invocations below use this venv.
+        run: uv sync
 
       - name: Validate bundle
         run: databricks bundle validate --target prod
@@ -48,13 +49,13 @@ jobs:
 
       - name: Test data contract
         run: |
-          datacontract test {{CONTRACT_PATH}} \
+          uv run datacontract test {{CONTRACT_PATH}} \
             --server production \
             --logs \
             --publish "$ENTROPY_DATA_HOST/test-results"
 
       - name: Publish data contract
-        run: entropy-data datacontracts put {{CONTRACT_ID}} --file {{CONTRACT_PATH}}
+        run: uv run entropy-data datacontracts put {{CONTRACT_ID}} --file {{CONTRACT_PATH}}
 
       - name: Publish data product
-        run: entropy-data dataproducts put {{DATA_PRODUCT_ID}} --file {{ODPS_FILE}}
+        run: uv run entropy-data dataproducts put {{DATA_PRODUCT_ID}} --file {{ODPS_FILE}}

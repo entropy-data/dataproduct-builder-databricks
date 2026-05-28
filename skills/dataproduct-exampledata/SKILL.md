@@ -30,7 +30,7 @@ Then proceed.
 
 - Confirm `databricks.yml` exists at the working directory root (this is a Declarative Automation Bundle).
 - Confirm there is at least one output-port ODCS file under `src/output_ports/`.
-- Confirm `entropy-data` CLI is on PATH (`entropy-data --version`). If not, surface the install line from the README and stop.
+- Confirm `uv run --quiet entropy-data --version` succeeds from the project root. If it fails, run `uv sync` and retry; if still missing, stop and tell the user to verify `entropy-data` is listed in `pyproject.toml`'s `[dependency-groups].dev`. Use `uv run entropy-data …` for every CLI invocation in this skill.
 - Confirm `databricks --version` is on PATH and `databricks auth describe` succeeds. If not, stop and tell the user to run `databricks auth login --host <host>`.
 - Confirm a non-production target is available. Read `databricks.yml` `targets:` and pick a target whose `mode:` is `development` or whose catalog is clearly non-prod (e.g. `<user>_dev`). **Never use a `prod` target in this skill.** If only a prod target exists, stop and tell the user to add a dev target first.
 - Identify a SQL warehouse to query against. Order of preference: (a) a `--warehouse-id` the user supplies, (b) the `warehouse_id` declared on the chosen target in `databricks.yml`, (c) the first warehouse from `databricks warehouses list -o json` that is running. If none is available, stop and ask the user to start one.

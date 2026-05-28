@@ -6,7 +6,11 @@ resources:
       catalog: ${var.catalog}
       schema: ${var.schema}
       libraries:
-        - glob:
-            include: ../src/**
+        # Each Python module listed explicitly — Lakeflow rejects non-.py / .sql
+        # files in libraries, and `glob.include` cannot filter by extension.
+        # `dataproduct-implement` appends entries here when it creates new
+        # input-port `@dp.view` wrappers under `src/input_ports/`.
+        - file:
+            path: ../src/output_ports/v1/{{TABLE}}.py
       configuration:
         bundle.sourcePath: ${workspace.file_path}/src

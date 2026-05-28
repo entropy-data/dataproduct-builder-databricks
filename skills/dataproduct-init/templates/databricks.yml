@@ -9,8 +9,8 @@ variables:
     description: Unity Catalog schema the pipeline writes to.
     default: {{SCHEMA}}
   notifications_email:
-    description: Email address for pipeline failure notifications.
-    default: ""
+    description: Email address for pipeline failure notifications (prod target only).
+    default: <set-before-prod-deploy>
 
 include:
   - resources/*.yml
@@ -59,3 +59,14 @@ targets:
       trigger_pause_status: UNPAUSED
       tags:
         env: prod
+    # Failure notifications — overlaid on the base scheduled job only for prod.
+    # Dev deploys deliberately have no `email_notifications` block (a blank
+    # `notifications_email` would panic the Jobs API). Replace the variable's
+    # default in `variables.notifications_email` above before the first prod
+    # deploy.
+    resources:
+      jobs:
+        {{DATA_PRODUCT_ID}}_scheduled:
+          email_notifications:
+            on_failure:
+              - ${var.notifications_email}

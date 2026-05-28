@@ -29,10 +29,14 @@ The skill files reference `${PLUGIN_ROOT}` to locate `templates/`. On Claude Cod
 ## CLIs the skills shell out to
 
 - **`databricks`** ([installation](https://docs.databricks.com/aws/en/dev-tools/cli/install)) — used to scaffold the bundle (`databricks bundle init`), validate (`databricks bundle validate`), deploy and run (`databricks bundle deploy` / `databricks bundle run`), and apply Unity Catalog grants and Delta Shares. Auth is via `.databrickscfg` profile, `DATABRICKS_HOST` + `DATABRICKS_TOKEN`, or OAuth (`databricks auth login`).
-- **`entropy-data`** (PyPI: `entropy-data`; install with `uv tool install entropy-data`) — used to publish data products / contracts, configure git connections, list teams, upload example data, and resolve access agreements. Auth is API-key based (`ENTROPY_DATA_API_KEY` env var, `--api-key` flag, or `entropy-data connection add` storing keys in `~/.entropy-data/config.toml`).
-- **`datacontract`** ([Data Contract CLI](https://github.com/datacontract/datacontract-cli); install with `uv tool install 'datacontract-cli[all]'`) — used to lint ODCS files (via PostToolUse hook), test schema and quality rules against the warehouse, and classify edits as breaking or additive.
+- **`entropy-data`** (PyPI: `entropy-data`) — used to publish data products / contracts, configure git connections, list teams, upload example data, and resolve access agreements. Auth is API-key based (`ENTROPY_DATA_API_KEY` env var, `--api-key` flag, or `entropy-data connection add` storing keys in `~/.entropy-data/config.toml`).
+- **`datacontract`** ([Data Contract CLI](https://github.com/datacontract/datacontract-cli)) — used to lint ODCS files (via PostToolUse hook), test schema and quality rules against the warehouse, and classify edits as breaking or additive.
 
-If any CLI is missing, surface the install instruction and stop — do not try to install on the user's behalf without confirmation.
+**Install pattern: per-project venv.** Every scaffolded project ships a `pyproject.toml` listing `entropy-data` and `datacontract-cli[all]` under `[dependency-groups].dev`. Running `uv sync` from the project root materializes `.venv/` with both CLIs at the versions pinned in `uv.lock`. **All skills invoke these CLIs as `uv run entropy-data …` and `uv run datacontract …`** so the project's pinned version is the one that runs, independent of anything globally installed.
+
+The one exception is `dataproduct-init`'s pre-check step: it runs against an empty directory before any `pyproject.toml` exists, so it requires a one-time globally available `entropy-data` (`uv tool install entropy-data`) for the initial DP / contract lookup. Once init scaffolds the project and runs `uv sync`, every subsequent skill uses the venv exclusively.
+
+If `uv run entropy-data` / `uv run datacontract` fails inside a project, surface `uv sync` from the project root as the fix and stop — do not install on the user's behalf without confirmation. Do not propose `uv tool install` as a fallback inside a project; that defeats version pinning.
 
 ## Conventions for derived values
 

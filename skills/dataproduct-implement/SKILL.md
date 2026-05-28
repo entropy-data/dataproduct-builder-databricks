@@ -39,7 +39,7 @@ Then proceed.
 - Confirm `databricks.yml` exists at the working directory root. If not, ask whether to run `dataproduct-init` first, then stop.
 - Confirm `databricks --version` is on PATH. If not, stop and tell the user to install the CLI (`brew install databricks/tap/databricks` on macOS).
 - Confirm `databricks auth describe` succeeds. If not, stop and tell the user to run `databricks auth login --host <workspace-url>`.
-- Confirm `entropy-data --version` is on PATH (install with `uv tool install entropy-data` if not) and `entropy-data connection test` succeeds. If the test fails, stop and tell the user to run `entropy-data connection add <name> --host <host> --api-key <key>`.
+- Confirm `uv run --quiet entropy-data --version` succeeds from the project root. If it fails, run `uv sync` (the init template seeds `entropy-data` as a dev dep) and retry. Once available, run `uv run entropy-data connection test`. If that fails, stop and tell the user to run `uv run entropy-data connection add <name> --host <host> --api-key <key>`. Use `uv run entropy-data …` for every CLI invocation in this skill.
 
 ### Step 1 — Resolve the data product
 
@@ -107,7 +107,7 @@ For each contract:
 
 1. Decide a Lakeflow table name. Default: the contract's schema/models key. Confirm with the user if it differs from the output-port server's table name.
 2. **Identify candidate input ports.** Run `entropy-data access list --consumer-dataproduct <DATA_PRODUCT_ID> -o json` to list the access agreements where this product is the consumer. Each entry's `provider.dataProductId` / `provider.outputPortId` is an input port this product can read. Keep only agreements with `info.active: true` (status `approved`); ignore `pending` / `rejected`. Only fall back to a broader `entropy-data search query` if the user explicitly asks. If `src/input_ports/<provider-output-port-id>.py` already exists for an agreement, treat it as authoritative and skip recreating it.
-3. Generate `src/output_ports/v1/<table>.py` — a `@dp.materialized_view` definition (batch body — the default for contract-driven output ports that read from other UC tables) that lists the contract columns explicitly with `F.col(...).cast(<spark-type>).alias("<column>")`. Use `@dp.table` instead only when the planned body uses `spark.readStream.table(...)` — i.e. the upstream input port is a streaming table and the consumer wants incremental append semantics. **Leave the body's source as a TODO** with a comment listing the candidate input ports from the previous step; do not invent business logic. Prepend a module docstring so a reader of the file knows which contract governs the schema:
+3. Generate `src/output_ports/v1/<table>.py` — a `@dp.materialized_view` definition (batch body — the default for contract-driven output ports that read from other UC tables) that lists the contract columns explicitly with `F.col(...).cast(<spark-type>).alias("<column>")`. Use `@dp.table` instead only when the planned body uses `spark.readStream.table(...)` — i.e. the upstream input port is a streaming table and the consumer wants incremental append semantics. **Leave the body's source as a TODO** with a comment listing the candidate input ports from the previous step; do not invent business logic. After writing, also ensure the new file is referenced in `resources/<DATA_PRODUCT_ID>.pipeline.yml` under `libraries:` (init seeds an entry for the primary output port; for additional output ports beyond the first, append a new `- file: { path: ../src/output_ports/v1/<table>.py }` entry — see Step 4.1.5 for the same maintenance rule). Prepend a module docstring so a reader of the file knows which contract governs the schema:
 
    ```python
    """Governed by <contract-file>.odcs.yaml (ODCS id: <CONTRACT_ID>)."""
@@ -222,6 +222,18 @@ For each output port table:
       ```
 
    The view name combines `<provider_dp_id>__<provider_op_id>` (double underscore) so it stays unique across agreements (two agreements with the same provider data product but different output ports do not collide). One pair of files (`*.odcs.yaml` + `*.py`) per agreement. Do not merge multiple agreements into a single file — each access grant should be independently visible in `git log` and easy to remove when revoked. If either file already exists for the same `<provider-output-port-id>`, surface the diff and ask before overwriting.
+
+   5. **Append the new `.py` to the pipeline's libraries list.** Lakeflow rejects non-`.py`/`.sql` files in `libraries`, and `libraries.glob.include` cannot filter by extension, so each Python module must be listed explicitly in `resources/<DATA_PRODUCT_ID>.pipeline.yml`. Add an entry under `libraries:`:
+
+      ```yaml
+      libraries:
+        - file:
+            path: ../src/output_ports/v1/<table>.py        # seeded by dataproduct-init
+        - file:
+            path: ../src/input_ports/<provider-output-port-id>.py  # added by this step
+      ```
+
+      Idempotent: if an entry for the same path already exists, do not duplicate it.
 
 2. **Match input columns to output columns**, in this order. Stop at the first signal that yields exactly one candidate.
    1. **Same semantic concept** — both columns declare a `type: semantics` entry in `authoritativeDefinitions` whose URL ends in the same path segment after normalization (lowercase, strip non-alphanumeric — so `…/processedTimestamp` matches `…/processed_timestamp`). Scheme, host, and org-id prefix differences don't disqualify.

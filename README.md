@@ -68,7 +68,11 @@ brew install databricks/tap/databricks
 databricks auth login --host https://<your-workspace>.cloud.databricks.com
 ```
 
-**Entropy Data** — API key registered with the [entropy-data CLI](https://github.com/entropy-data/entropy-data-cli) (requires [uv](https://docs.astral.sh/uv/)):
+**Entropy Data** — API key registered with the [entropy-data CLI](https://github.com/entropy-data/entropy-data-cli) (requires [uv](https://docs.astral.sh/uv/)).
+
+The skills use a **per-project venv** for both `entropy-data` and `datacontract`. After `dataproduct-init` scaffolds a project, run `uv sync` from the project root to install both CLIs at the pinned versions, then invoke them as `uv run entropy-data …` / `uv run datacontract …`.
+
+The one exception is the first call to `dataproduct-init` itself, which runs against an empty directory (no `pyproject.toml`, no venv yet) and needs `entropy-data` available globally for its lookup step. Install once per machine:
 
 ```
 uv tool install --upgrade entropy-data
@@ -77,11 +81,7 @@ entropy-data connection add default --api-key <your-api-key> --host <your-entrop
 
 Create a user-scoped key in the Entropy Data web UI (**Organization Settings → API Keys → Create new API key**, scope `User (personal token)`). For CI workflows, add a connection with a team-scoped or organization-scoped key.
 
-**Data Contract CLI** — for `datacontract-edit` and `datacontract-test`:
-
-```
-uv tool install 'datacontract-cli[all]'
-```
+**Data Contract CLI** — used by `datacontract-edit`, `datacontract-test`, and the CI publish workflow. Lives in the project's venv (seeded into every init-scaffolded `pyproject.toml` as a dev dep). No separate global install needed once you `uv sync`.
 
 ## Use
 

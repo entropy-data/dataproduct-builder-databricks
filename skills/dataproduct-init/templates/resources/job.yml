@@ -10,6 +10,8 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.{{DATA_PRODUCT_ID}}.id}
             full_refresh: false
-      email_notifications:
-        on_failure:
-          - ${var.notifications_email}
+      # `email_notifications` is intentionally NOT set here — the Jobs API
+      # rejects an empty-string entry in `on_failure`, so a blank
+      # `notifications_email` variable would panic every dev deploy. The
+      # prod target overlays this block in `../databricks.yml` once the
+      # `notifications_email` variable has a real value.

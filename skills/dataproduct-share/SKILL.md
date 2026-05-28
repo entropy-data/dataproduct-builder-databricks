@@ -41,7 +41,7 @@ Then proceed.
 
 - Confirm `databricks.yml` exists at the working directory root.
 - Confirm `databricks --version` is on PATH and `databricks auth describe` succeeds. The authenticated identity must have `MANAGE` on the target catalog or `MANAGE GRANT` on the output port's table — `databricks grants get TABLE <catalog>.<schema>.<table>` should succeed. If it fails with a permissions error, surface it and ask the user to either re-auth as a privileged principal or hand off the generated grant commands to someone who can run them.
-- Confirm `entropy-data --version` is on PATH and `entropy-data connection test` succeeds.
+- Confirm `uv run --quiet entropy-data --version` succeeds from the project root. If it fails, run `uv sync` and retry. Then confirm `uv run entropy-data connection test` succeeds. Use `uv run entropy-data …` for every CLI invocation in this skill.
 - Resolve `DATA_PRODUCT_ID`: look for a single `*.odps.yaml` at the repo root and read `id`. If multiple ODPS files exist or none, ask the user.
 
 ### Step 1 — List approved access agreements
