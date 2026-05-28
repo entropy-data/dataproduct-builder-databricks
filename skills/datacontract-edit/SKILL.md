@@ -58,7 +58,7 @@ uv run datacontract test src/output_ports/v<N>/<file>.odcs.yaml --server <server
 
 - If the contract has more than one server, ask which one (typically `production`). Default to `all` only if the user explicitly asks.
 - Use `--logs` so failure detail is in the output you read; otherwise the CLI only prints a summary.
-- If the user wants the report persisted, add `--output ./test-results/junit.xml --output-format junit`.
+- Always add `--output ./test-results/junit.xml --output-format junit` so the JUnit artifact exists for the optional Step 2b publish.
 - Capture stdout + exit code as `TEST_RESULT`. Non-zero exit means at least one rule failed; the log section names the failing field/rule.
 
 Pre-reqs the CLI needs (verify before running, fail fast with a clear message if missing):
@@ -67,6 +67,24 @@ Pre-reqs the CLI needs (verify before running, fail fast with a clear message if
 - The chosen server's credentials available as env vars per the ODCS server block (e.g. `DATACONTRACT_DATABRICKS_TOKEN` + `DATACONTRACT_DATABRICKS_HTTP_PATH` for Databricks). Tell the user which env vars are missing — do not try to source them yourself.
 
 Do **not** use the platform's server-side contract-test endpoint from this skill. The local `datacontract` CLI runs against the edited file and gives line-level failure detail; testing the published version on the server would test the *previous* contract, which defeats the point of testing the edit.
+
+### Step 2b — Publish results to Entropy Data (optional)
+
+This is an output-port contract — results belong in the platform's Data Quality panel.
+
+**Ask the user — required confirmation gate:**
+
+> Publish the test results to Entropy Data so they show up in the Data Quality panel for `<CONTRACT_ID>`? (yes / no)
+
+If **no**, mark publish as `skipped` in Step 4. Do not publish without an explicit ask — this writes server-side state.
+
+If **yes**:
+
+```
+uv run entropy-data test-results publish --file ./test-results/junit.xml
+```
+
+Capture stdout + exit code. On failure, surface the error in the final report but do not retry — the edit and its local test outcome are still the user's primary signal.
 
 ### Step 3 — Classify the outcome
 
@@ -91,6 +109,7 @@ End with this two-part recap. The `Status` column uses the shared enum (AGENTS.m
 |---|---|---|
 | Contract file | updated | `src/output_ports/v<N>/<file>.odcs.yaml` — show the unified diff inline |
 | Contract test | … | `pass`, `fail (<N> failures)`, or `not run (missing creds)` — name the server |
+| Test results published to Entropy Data | … | `published` / `skipped (user declined)` / `failed: <error>` |
 | Breaking — schema | … | count of failures in this bucket, or "—" |
 | Breaking — quality | … | count of failures in this bucket, or "—" |
 | Non-breaking — additive | … | count of changes in this bucket, or "—" |

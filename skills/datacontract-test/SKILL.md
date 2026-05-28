@@ -65,21 +65,38 @@ uv run datacontract test <path-to-contract>.odcs.yaml --server <server> --logs
 Where `<path-to-contract>` is the file resolved in Step 1 — typically `src/output_ports/v<N>/<file>.odcs.yaml` for output contracts, or `src/input_ports/<file>.odcs.yaml` for input contracts. The CLI does not care which directory; the role only matters for how Step 4 reports the result.
 
 - `--logs` ensures per-rule failure detail is in stdout — without it the CLI only prints a summary.
-- If the user asks for a persisted report (e.g. to attach to a PR), add `--output ./test-results/<contract>.xml --output-format junit`.
-- If the user asks to publish results back to Entropy Data (matches the generated CI workflow), add `--publish $API/test-results` where `$API` is the Entropy Data host. Don't publish by default — it writes server-side state.
+- For every contract you intend to publish in Step 3b, write a JUnit report too: add `--output ./test-results/<contract>.xml --output-format junit`. Skip the file when not publishing.
 - Capture stdout and exit code per contract. Non-zero exit means at least one rule failed.
 
 Run sequentially, not in parallel — the warehouse is the bottleneck and parallel runs muddy the log output.
 
+### Step 3b — Publish results to Entropy Data (optional)
+
+The platform's Data Quality panel reads test results published via `entropy-data test-results publish`. Run this step only for **output-port** contracts — input-port results belong to the upstream provider.
+
+**Ask the user — required confirmation gate:**
+
+> Publish the test results to Entropy Data so they show up in the Data Quality panel? (yes / no)
+
+If **no**, mark publish as `skipped` and continue to Step 4. Do not publish without an explicit ask — this writes server-side state visible to all viewers.
+
+If **yes**, for each output-port contract tested:
+
+```
+uv run entropy-data test-results publish --file ./test-results/<contract>.xml
+```
+
+Capture exit code per file. The CLI reads the JUnit XML, infers the contract id and server, and uploads. If a publish fails, surface the CLI error and continue with the rest — don't abort the loop on one failure.
+
 ### Step 4 — Report
 
-End with this two-part recap. Use the shared `Status` enum (AGENTS.md § Final-report Status enum). For this skill the relevant statuses are `passed`, `failed`, and `skipped` (missing creds).
+End with this two-part recap. Use the shared `Status` enum (AGENTS.md § Final-report Status enum). For this skill the relevant statuses are `passed`, `failed`, and `skipped` (missing creds, or user declined publish).
 
 **Part 1 — outcome table.** One row per contract tested. Group the rows: output-port contracts first, then input-port contracts under a sub-header (so the reader sees the two roles at a glance).
 
-| Contract | Role | Server | Result | Failures | Details |
-|---|---|---|---|---|---|
-| `<contract-file>` | `output` / `input` | `<server>` | `passed` / `failed` / `skipped` | count or `—` | one line per failing rule (field + rule), or "missing env var: …" if skipped |
+| Contract | Role | Server | Result | Failures | Published | Details |
+|---|---|---|---|---|---|---|
+| `<contract-file>` | `output` / `input` | `<server>` | `passed` / `failed` / `skipped` | count or `—` | `published` / `skipped (user declined)` / `n/a (input port)` / `failed: <error>` | one line per failing rule (field + rule), or "missing env var: …" if skipped |
 
 **Part 2 — next steps.** Bullet list, include only what applies. Treat output vs. input failures differently:
 

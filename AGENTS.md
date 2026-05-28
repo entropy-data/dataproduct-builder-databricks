@@ -85,9 +85,11 @@ A new data product reaches "input ports wired, materialized view producing rows"
 8. **Wait for approval.** *Manual + async:* the provider team approves via `entropy-data access approve <id>` or the UI.
 9. **Wire input ports.** Re-run `dataproduct-implement` — `entropy-data access list --consumer-dataproduct …` now returns active agreements, the skill caches each upstream contract under `src/input_ports/`, writes `@dp.view` wrappers, and attempts 1:1 column matching.
 10. **Build transformation logic.** *Manual coding* in `src/output_ports/v1/<table>.py` — joins, aggregations, derived columns, conditional logic. The skill marks each as `# TODO: <description from contract>`.
-11. **Deploy + run.** `dataproduct-deploy` validates, deploys, runs, and polls.
-12. **Verify against the contract.** `datacontract-test` (skill or direct CLI) — schema + quality checks against the live table.
+11. **Deploy + run.** `dataproduct-deploy` validates, deploys, runs, and polls. On a successful **prod** run, the skill asks whether to (a) trigger the Databricks integration to surface the new tables as Entropy Data assets and (b) bind those assets to the data product.
+12. **Verify against the contract.** `datacontract-test` (skill or direct CLI) — schema + quality checks against the live table. The skill asks whether to publish JUnit results via `entropy-data test-results publish` so they appear in the platform's Data Quality panel. The CI workflow always publishes; only the local-run path is gated.
 13. **Share with consumers.** `dataproduct-share` applies Unity Catalog `GRANT SELECT` or sets up Delta Sharing per approved consumer access agreement.
+
+OpenLineage emit is offered at scaffold time (`dataproduct-init` Step 4b) and revisited by `entropy-data-publish`'s audit. When enabled, the Lakeflow pipeline ships RunEvents to the Entropy Data API, which renders them in the platform's Lineage panel.
 
 Steps 4-8 are the heaviest manual stretch. Steps 4 (VCS setup) and 7 (access request) are deliberately outside skill scope: VCS has high blast radius and access decisions are governance. Each SKILL.md's final-report next-steps points back to this lifecycle so the user knows where they are in the loop.
 
@@ -99,3 +101,4 @@ Steps 4-8 are the heaviest manual stretch. Steps 4 (VCS setup) and 7 (access req
 - **Don't commit secrets.** API keys, tokens, and workspace URLs must come from env vars or repo secrets, never from committed files.
 - **Idempotent re-runs.** Running a skill a second time when everything is already in place should be a no-op.
 - **Unity Catalog three-part naming.** Tables are addressed as `<catalog>.<schema>.<table>` everywhere — in `databricks.yml` variables, in `@dp.table` references, in ODCS server blocks. Never assume a two-part default.
+- **Required confirmation gates.** Skills mark certain operations as "ask the user before proceeding": OpenLineage emit, test-results publish, asset assignment, and any UC GRANT or Delta-Share creation. Default to **no** if the gate is bypassed (e.g. auto-mode without user supervision) — these write platform-side state visible to others, and a silent "yes" can leak credentials or expose data.

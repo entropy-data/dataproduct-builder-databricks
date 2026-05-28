@@ -49,11 +49,21 @@ jobs:
         run: databricks bundle run {{DATA_PRODUCT_ID}} --target prod
 
       - name: Test data contract
+        # JUnit output drives the next step's publish to Entropy Data.
         run: |
+          mkdir -p test-results
           uv run datacontract test {{CONTRACT_PATH}} \
             --server production \
             --logs \
-            --publish "$ENTROPY_DATA_HOST/test-results"
+            --output ./test-results/junit.xml \
+            --output-format junit
+
+      - name: Publish test results to Entropy Data
+        # Surfaces in the platform's Data Quality panel for the output-port
+        # contract. CI is non-interactive — publish is unconditional here.
+        # Local runs go through the `datacontract-test` skill's confirmation gate.
+        if: always()
+        run: uv run entropy-data test-results publish --file ./test-results/junit.xml
 
       - name: Publish data contract
         run: uv run entropy-data datacontracts put {{CONTRACT_ID}} --file {{CONTRACT_PATH}}

@@ -27,6 +27,7 @@ Before running Step 0, print this plan to the user verbatim:
 > 5. `databricks bundle run <pipeline> --target <target>` — trigger an update of the Lakeflow pipeline.
 > 6. Poll `databricks pipelines get` until the update completes, then surface row counts, failed expectations, and any pipeline-level error.
 > 7. Report.
+> 8. **Prod target only:** ask whether to trigger the Databricks integration ingest in Entropy Data and bind the materialized table to the data product as an asset.
 
 Then proceed.
 
@@ -122,6 +123,61 @@ End with this two-part recap. Use the shared `Status` enum (AGENTS.md § Final-r
 - If `--full-refresh-all` or `--full-refresh <tables>` was used, remind the user that downstream consumers may have seen empty tables briefly during the refresh window.
 
 If the run completed without errors or failed expectations, write a single line: `Pipeline <PIPELINE_KEY> ran successfully on <target>. <N> tables materialized.`
+
+### Step 7 — Assign UC table to the data product as an asset (prod only)
+
+Run this step only when the deploy target was `prod` (or any target with `mode: production`) **and** the pipeline run succeeded. Skip entirely for dev — dev tables aren't customer-facing and shouldn't appear as Entropy Data assets.
+
+Entropy Data discovers UC tables via the Databricks integration, which runs nightly. To make the freshly materialized table appear immediately in the platform's catalog (and bind it to this data product), the skill can trigger the ingest on demand and then assign.
+
+**Ask the user — required confirmation gate:**
+
+> The prod pipeline materialized `<catalog>.<schema>.<table>`. Trigger the Databricks integration ingest now to register the new tables as Entropy Data assets, then bind them to the data product? (yes / no / ingest only)
+
+If **no**, skip the step and mark as `skipped` in the report.
+
+If **ingest only**: do part (a) below, skip part (b).
+
+If **yes**: do both (a) and (b).
+
+(a) **Trigger ingest.** Resolve the Databricks integration id:
+
+```
+uv run entropy-data integrations list -o json | jq -r '.[] | select(.source == "databricks") | .id'
+```
+
+If exactly one row is returned, use it. If multiple, ask the user which workspace integration to run. Then:
+
+```
+uv run entropy-data integrations run <integration-id> --wait --timeout 600
+```
+
+`--wait` polls until the ingest reaches a terminal state. On `SUCCESS`, proceed to (b). On `FAILED` / `CANCELLED`, surface the error and stop — do not retry without explicit user input.
+
+(b) **Bind the asset to the data product.** Resolve the data product id from `<id>.odps.yaml`. Find the asset matching the materialized table:
+
+```
+uv run entropy-data assets list -o json | jq '.[] | select(.info.qualifiedName == "<catalog>.<schema>.<table>")'
+```
+
+If exactly one asset matches, capture its `id` as `ASSET_ID`. If multiple match (rare — happens when older deletions leak), surface them and ask the user. If zero match, the ingest didn't pick the table up yet — wait 30 seconds and retry once before giving up.
+
+The exact binding payload format depends on the platform schema and is best discovered at runtime — start by reading `uv run entropy-data assets get <ASSET_ID> -o json` for the current shape, then check whether the DP body or the asset body holds the link by inspecting one already-assigned asset (`uv run entropy-data assets list -o json | jq '.[] | select(.relationships // [] | length > 0)'`). Construct the binding body accordingly and apply with `uv run entropy-data assets put <ASSET_ID> --file -` (stdin). Surface the exact request body to the user before applying. If the body shape is unclear, ask the user — do not guess against the platform.
+
+Mark per-table in the report:
+
+- `created` — ingest ran and asset bound for the first time.
+- `updated` — asset was already known; binding added/refreshed.
+- `already present` — asset and binding both already wired.
+- `skipped` — user declined the gate.
+- `failed` — ingest or bind raised a CLI error (include the error verbatim).
+
+### Add to Step 6 — Report
+
+When Step 7 ran (target=prod, successful run), append these rows to the Part 1 outcome table:
+
+| Asset assignment | … | per-table `<catalog>.<schema>.<table>: <status>` |
+| Databricks integration ingest | … | "ran (<elapsed>s, <N> assets updated)" / "skipped" / "failed: <error>" |
 
 ## Constraints
 

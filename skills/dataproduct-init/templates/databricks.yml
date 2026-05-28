@@ -11,6 +11,17 @@ variables:
   notifications_email:
     description: Email address for pipeline failure notifications (prod target only).
     default: <set-before-prod-deploy>
+  # OpenLineage emit — set both to enable lineage emission to Entropy Data.
+  # `dataproduct-init` populates these (from the entropy-data CLI connection)
+  # when the user opts in at scaffold time; leave blank to disable. The
+  # Spark listener block lives in resources/<id>.pipeline.yml under
+  # `configuration:` — present only when emit is enabled.
+  openlineage_url:
+    description: OpenLineage HTTP endpoint (typically the Entropy Data API host). Blank disables emit.
+    default: ""
+  openlineage_api_key:
+    description: API key sent as bearer token by the OpenLineage HTTP transport.
+    default: ""
 
 include:
   - resources/*.yml
