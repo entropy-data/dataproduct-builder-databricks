@@ -7,6 +7,6 @@ resources:
       schema: ${var.schema}
       libraries:
         - glob:
-            include: ../src/**/*.py
+            include: ../src/**
       configuration:
         bundle.sourcePath: ${workspace.file_path}/src

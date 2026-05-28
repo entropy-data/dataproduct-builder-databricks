@@ -13,7 +13,7 @@
         "repo": "entropy-data/dataproduct-builder-databricks"
       },
       "description": "Build data products on Databricks with Declarative Automation Bundles and Lakeflow Spark Declarative Pipelines, integrated with Entropy Data.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "Entropy Data",
         "url": "https://entropy-data.com"
