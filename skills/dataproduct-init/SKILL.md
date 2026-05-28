@@ -169,7 +169,7 @@ The publish skill will run its own audit. For a brand-new product, every artifac
 
 ### Step 6 — Final report
 
-After both skills have run, end with this two-part recap. Use the same `Status` enum the other skills use: `created`, `updated`, `already present`, `deferred`, `skipped`.
+After both skills have run, end with this two-part recap. Use the shared `Status` enum (AGENTS.md § Final-report Status enum).
 
 **Part 1 — outcome table.** State the mode at the top of the recap — one of `Mode: new product`, `Mode: initialized from existing draft <DATA_PRODUCT_ID>`, or `Mode: initialized from existing data contract <CONTRACT.id>`.
 
@@ -195,7 +195,7 @@ After both skills have run, end with this two-part recap. Use the same `Status` 
 
 ```bash
 # (1) Install Python dev deps locally.
-uv venv && source .venv/bin/activate && uv pip install --group dev
+uv sync
 
 # (2) Create a Python stub for the output port (or run dataproduct-implement).
 #     Skip if you'll run dataproduct-implement next — it does the same thing

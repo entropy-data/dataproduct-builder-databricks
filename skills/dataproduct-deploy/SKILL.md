@@ -15,8 +15,6 @@ Take the local Declarative Automation Bundle and (1) validate it, (2) deploy it 
 
 ## How to run this skill
 
-> `${PLUGIN_ROOT}` below refers to the root of this plugin — the directory that contains `skills/`. On Claude Code it is set automatically as `${CLAUDE_PLUGIN_ROOT}` — use that. On any other agent (Codex, Copilot CLI, etc.) it is unset; resolve it as `../..` relative to **this `SKILL.md` file's directory** (i.e. the grandparent of `skills/<this-skill>/`).
-
 ### Plan announcement (before Step 0)
 
 Before running Step 0, print this plan to the user verbatim:
@@ -103,7 +101,7 @@ Extract:
 
 ### Step 6 — Report
 
-End with this two-part recap. Use the same `Status` enum the other skills use: `created`, `updated`, `already present`, `deferred`, `skipped`. For this skill, the relevant statuses are `passed`, `failed`, and `deferred` (run still in progress at the timeout).
+End with this two-part recap. Use the shared `Status` enum (AGENTS.md § Final-report Status enum). For this skill the relevant statuses are `passed`, `failed`, and `deferred` (run still in progress at the timeout).
 
 **Part 1 — outcome table.**
 
@@ -120,7 +118,7 @@ End with this two-part recap. Use the same `Status` enum the other skills use: `
 
 - For each failed expectation, the field/rule and the corresponding ODCS line — point at `datacontract-edit` if the rule itself is wrong, or at the contract test if the data is the problem.
 - If the pipeline failed mid-flow, surface the link to the run in the Databricks UI: `https://<workspace>/#joblist/pipelines/<pipeline-id>/updates/<update-id>`.
-- If the run succeeded, suggest running `datacontract test src/output_ports/v<N>/<contract>.odcs.yaml` to confirm the published data conforms end-to-end.
+- If the run succeeded, suggest running `uv run datacontract test src/output_ports/v<N>/<contract>.odcs.yaml --server production` to confirm the published data conforms end-to-end.
 - If `--full-refresh-all` or `--full-refresh <tables>` was used, remind the user that downstream consumers may have seen empty tables briefly during the refresh window.
 
 If the run completed without errors or failed expectations, write a single line: `Pipeline <PIPELINE_KEY> ran successfully on <target>. <N> tables materialized.`

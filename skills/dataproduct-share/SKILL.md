@@ -20,8 +20,6 @@ Two delivery mechanisms, chosen per agreement:
 
 ## How to run this skill
 
-> `${PLUGIN_ROOT}` below refers to the root of this plugin — the directory that contains `skills/`. On Claude Code it is set automatically as `${CLAUDE_PLUGIN_ROOT}` — use that. On any other agent (Codex, Copilot CLI, etc.) it is unset; resolve it as `../..` relative to **this `SKILL.md` file's directory** (i.e. the grandparent of `skills/<this-skill>/`).
-
 ### Plan announcement (before Step 0)
 
 Before running Step 0, print this plan to the user verbatim:
@@ -144,7 +142,7 @@ If any step fails, capture the CLI error and continue to the next agreement — 
 
 ### Step 5 — Report
 
-End with this two-part recap. Use the same `Status` enum (`created`, `updated`, `already present`, `deferred`, `skipped`); for failed grants/shares, use a sixth informal value `failed` in the table cell with the error in `Details`.
+End with this two-part recap. Use the shared `Status` enum (AGENTS.md § Final-report Status enum). For failed grants/shares, use the informal `failed` value in the table cell with the error in `Details`.
 
 **Part 1 — outcome table.** Group rows by mechanism.
 

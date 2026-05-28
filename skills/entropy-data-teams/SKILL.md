@@ -9,8 +9,6 @@ Print the teams configured in Entropy Data and — if invoked from another skill
 
 ## How to run this skill
 
-> `${PLUGIN_ROOT}` below refers to the root of this plugin — the directory that contains `skills/`. On Claude Code it is set automatically as `${CLAUDE_PLUGIN_ROOT}` — use that. On any other agent (Codex, Copilot CLI, etc.) it is unset; resolve it as `../..` relative to **this `SKILL.md` file's directory** (i.e. the grandparent of `skills/<this-skill>/`).
-
 ### Plan announcement (before Step 0)
 
 Before running Step 0, print this plan to the user verbatim:

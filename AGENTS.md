@@ -57,15 +57,19 @@ The derived id must satisfy the same Unity Catalog rules as any hand-picked id: 
 
 ### Schema convention
 
-The init template's `databricks.yml` dev target writes to `${workspace.current_user.short_name}_<schema>` (a per-user schema in the same catalog as prod); the prod target writes to the unprefixed `<schema>`. The output-port ODCS ships a single `production` server pointing at the unprefixed schema.
+Unity Catalog enforces single-pipeline ownership of materialized views, so dev and prod pipelines cannot share a target schema. The init template's dev target uses `${workspace.current_user.short_name}_<schema>` (per-user, same catalog); prod uses the unprefixed `<schema>`. The ODCS ships a single `production` server pointing at the prod schema — consumers contract against the published commitment, not anyone's sandbox. `datacontract test --server production` runs in CI after the prod pipeline materializes; for ad-hoc local testing, a developer can temporarily add a `dev` server to the local ODCS (uncommitted). For stricter isolation, the dev target can also override `var.catalog`.
 
-**Why per-user dev schema is required (not optional).** Unity Catalog enforces single-pipeline ownership of materialized views. Lakeflow's 2025.04 release notes make it explicit: every pipeline must specify a target schema, and that schema's tables are owned by exactly one pipeline. So the dev pipeline and the prod pipeline cannot both materialize the output port at the same schema — once CI's prod pipeline owns `customer_onboarding`, the dev pipeline physically can't create it there. This is also the canonical pattern in the Databricks docs DAB examples (docs.databricks.com/aws/en/dev-tools/bundles/examples uses `${workspace.current_user.short_name}` verbatim).
+### Final-report Status enum
 
-This diverges from the `dataproduct-builder-dbt` sibling, where dev and prod typically share a schema because `dbt run` is a SQL `CREATE OR REPLACE` with no pipeline-ownership constraint. The asymmetry is intentional: each plugin matches its platform's semantics.
+Skills that emit a final-report outcome table use this enum verbatim:
 
-**The contract still describes prod only.** The ODCS template ships a single `production` server. Per-user dev schemas are local scaffolding; consumers contract against the published prod table, not against any developer's sandbox. `datacontract test --server production` runs in CI after the prod pipeline materializes. For ad-hoc local contract testing against a dev table, a developer can temporarily add a `dev` server to the *local* ODCS file (uncommitted) — the plugin doesn't template it because the schema name would be per-user and uncommittable.
+- `created` — wrote a new file or registered a new record.
+- `updated` — patched an existing file or fixed drift.
+- `already present` — no change needed.
+- `deferred` — skipped intentionally; the follow-up command appears in Part 2.
+- `skipped` — the user declined when asked to confirm.
 
-**For stricter isolation** (rare; usually per-user schema in one catalog is enough), the dev target can override `catalog` to a separate `dev_catalog`. The Databricks docs example shows both pieces together.
+Some skills extend it with action-result values (`passed` / `failed` for deploy and test runs). Those are skill-local.
 
 ## Lifecycle: from scaffold to wired pipeline
 

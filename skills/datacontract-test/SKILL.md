@@ -20,8 +20,6 @@ Two kinds of contracts live in this project and they test against different ware
 
 ## How to run this skill
 
-> `${PLUGIN_ROOT}` below refers to the root of this plugin — the directory that contains `skills/`. On Claude Code it is set automatically as `${CLAUDE_PLUGIN_ROOT}` — use that. On any other agent (Codex, Copilot CLI, etc.) it is unset; resolve it as `../..` relative to **this `SKILL.md` file's directory** (i.e. the grandparent of `skills/<this-skill>/`).
-
 ### Plan announcement (before Step 0)
 
 Before running Step 0, print this plan to the user verbatim:
@@ -75,7 +73,7 @@ Run sequentially, not in parallel — the warehouse is the bottleneck and parall
 
 ### Step 4 — Report
 
-End with this two-part recap. Use the shared `Status` enum (`created`, `updated`, `already present`, `deferred`, `skipped`); for this skill the relevant statuses are `passed`, `failed`, and `skipped` (missing creds).
+End with this two-part recap. Use the shared `Status` enum (AGENTS.md § Final-report Status enum). For this skill the relevant statuses are `passed`, `failed`, and `skipped` (missing creds).
 
 **Part 1 — outcome table.** One row per contract tested. Group the rows: output-port contracts first, then input-port contracts under a sub-header (so the reader sees the two roles at a glance).
 

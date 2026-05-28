@@ -11,8 +11,6 @@ This skill operates **only on output-port contracts** — the spec this data pro
 
 ## How to run this skill
 
-> `${PLUGIN_ROOT}` below refers to the root of this plugin — the directory that contains `skills/`. On Claude Code it is set automatically as `${CLAUDE_PLUGIN_ROOT}` — use that. On any other agent (Codex, Copilot CLI, etc.) it is unset; resolve it as `../..` relative to **this `SKILL.md` file's directory** (i.e. the grandparent of `skills/<this-skill>/`).
-
 ### Plan announcement (before Step 0)
 
 Before running Step 0, print this plan to the user verbatim:
@@ -55,7 +53,7 @@ After editing, remember the new block as `AFTER` and show the user a unified dif
 Run the test with the **`datacontract` CLI** against the local contract file:
 
 ```
-datacontract test src/output_ports/v<N>/<file>.odcs.yaml --server <server> --logs
+uv run datacontract test src/output_ports/v<N>/<file>.odcs.yaml --server <server> --logs
 ```
 
 - If the contract has more than one server, ask which one (typically `production`). Default to `all` only if the user explicitly asks.
@@ -85,7 +83,7 @@ For each failure, name the exact field/rule and which bucket it falls into. Don'
 
 ### Step 4 — Report and suggest fixes
 
-End with this two-part recap. The `Status` column uses the shared enum (`created`, `updated`, `already present`, `deferred`, `skipped`), and below it a classification table covers any test failures.
+End with this two-part recap. The `Status` column uses the shared enum (AGENTS.md § Final-report Status enum), and below it a classification table covers any test failures.
 
 **Part 1 — outcome table.**
 

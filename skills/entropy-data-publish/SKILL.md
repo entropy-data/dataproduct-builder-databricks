@@ -181,7 +181,7 @@ Notes:
 
 Always end with this exact two-part format so the user gets a consistent recap.
 
-**Part 1 — outcome table.** One row per artifact from the audit. Use the `Status` enum below; `Details` is a short, plain-text note (file path, or "—" if nothing to add).
+**Part 1 — outcome table.** One row per artifact from the audit. `Status` uses the shared enum (AGENTS.md § Final-report Status enum). `Details` is a short, plain-text note (file path, or "—" if nothing to add).
 
 | Artifact | Status | Details |
 |---|---|---|
@@ -191,14 +191,6 @@ Always end with this exact two-part format so the user gets a consistent recap.
 | Bundle layout | … | … |
 | Publish workflow | … | … |
 | Git connections | … | … |
-
-`Status` enum (use exactly these words):
-
-- `created` — the skill wrote a new file or registered a new connection.
-- `updated` — the skill patched an existing file or fixed a drifted connection.
-- `already present` — no change needed.
-- `deferred` — skipped intentionally (data product/contract not yet published, or no git repo). The deferred command(s) appear in Part 2.
-- `skipped` — the user declined when asked to confirm.
 
 **Part 2 — next steps.** This skill sits in the middle of the canonical lifecycle (see AGENTS.md § Lifecycle). Include only the items that apply.
 
