@@ -66,13 +66,16 @@ The `dev` target is the default — running `databricks bundle deploy` with no `
 
 ### Schema convention
 
-Dev and prod share `{{SCHEMA}}`. `mode: development` prefixes Lakeflow resource names (`[dev <user>] …`), not the table. Test against the table after a dev deploy with:
+- **Dev** target writes to `${workspace.current_user.short_name}_{{SCHEMA}}` — a per-user schema in the same catalog as prod. Required: Unity Catalog enforces single-pipeline ownership of materialized views, so dev can't share a schema with prod.
+- **Prod** target writes to `{{SCHEMA}}`. The output-port ODCS has a single `production` server pointing at this location.
 
-```bash
-uv run datacontract test src/output_ports/v1/<contract-id>.odcs.yaml --server production --logs
-```
+`mode: development` additionally prefixes Lakeflow resource names (`[dev <user>] …`).
 
-For per-developer schema isolation, override at deploy time: `databricks bundle deploy --target dev --var=schema=<your-prefix>_{{SCHEMA}}` (and add a matching ODCS server entry locally if you also want `datacontract test` to work against it).
+`datacontract test` is **CI-only by convention** — it runs against the prod-materialized table after CI publishes. The contract describes the published commitment; per-user dev schemas are local scaffolding.
+
+If you need to test the contract locally against your dev table (rare), temporarily add a `dev` server to *this* file pointing at your per-user schema, run `uv run datacontract test src/output_ports/v1/<contract-id>.odcs.yaml --server dev --logs`, and revert before committing.
+
+For stricter isolation than per-user schema, override `var.catalog` per target (e.g. a separate `dev_catalog`).
 
 ## Layout
 

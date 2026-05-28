@@ -33,12 +33,20 @@ targets:
   # Dev target — picked by `databricks bundle deploy` with no --target flag.
   # `mode: development` injects: name prefix [dev <user>], dev tag,
   # pipelines `development: true`, all schedules paused, deployment lock off,
-  # workspace.root_path scoped to the deploying user's home. Schema is shared
-  # with prod (see README § Schema convention); override per-deploy with
-  # --var=schema=<prefix>_<schema> for per-developer isolation.
+  # workspace.root_path scoped to the deploying user's home.
+  #
+  # Per-user schema override is required (not optional): Unity Catalog
+  # enforces single-pipeline ownership of materialized views, so the dev
+  # pipeline can't materialize at the same schema where the prod CI
+  # pipeline owns the table. ${workspace.current_user.short_name} resolves
+  # to the deploying user's slug so concurrent devs on the same team don't
+  # collide. Matches the Databricks docs DAB example
+  # (docs.databricks.com/aws/en/dev-tools/bundles/examples).
   dev:
     default: true
     mode: development
+    variables:
+      schema: ${workspace.current_user.short_name}_{{SCHEMA}}
 
   # Prod target — customize before first prod deploy. `mode: production`
   # validates that workspace paths are NOT user-scoped and that `run_as`

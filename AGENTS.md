@@ -57,9 +57,15 @@ The derived id must satisfy the same Unity Catalog rules as any hand-picked id: 
 
 ### Schema convention
 
-Dev and prod targets share `var.schema`; the output-port ODCS has a single `production` server pointing at the same UC location. `mode: development` isolates Lakeflow pipeline/job **names** (`[dev <user>] …`) but not the table. After a dev deploy, `datacontract test --server production` works locally.
+The init template's `databricks.yml` dev target writes to `${workspace.current_user.short_name}_<schema>` (a per-user schema in the same catalog as prod); the prod target writes to the unprefixed `<schema>`. The output-port ODCS ships a single `production` server pointing at the unprefixed schema.
 
-For per-developer schema isolation, deploy with `--var=schema=<your-prefix>_<schema>`. Skills should not template a per-target schema override or add extra ODCS servers — per-user customization is the user's local choice. Matches the `dataproduct-builder-dbt` sibling convention.
+**Why per-user dev schema is required (not optional).** Unity Catalog enforces single-pipeline ownership of materialized views. Lakeflow's 2025.04 release notes make it explicit: every pipeline must specify a target schema, and that schema's tables are owned by exactly one pipeline. So the dev pipeline and the prod pipeline cannot both materialize the output port at the same schema — once CI's prod pipeline owns `customer_onboarding`, the dev pipeline physically can't create it there. This is also the canonical pattern in the Databricks docs DAB examples (docs.databricks.com/aws/en/dev-tools/bundles/examples uses `${workspace.current_user.short_name}` verbatim).
+
+This diverges from the `dataproduct-builder-dbt` sibling, where dev and prod typically share a schema because `dbt run` is a SQL `CREATE OR REPLACE` with no pipeline-ownership constraint. The asymmetry is intentional: each plugin matches its platform's semantics.
+
+**The contract still describes prod only.** The ODCS template ships a single `production` server. Per-user dev schemas are local scaffolding; consumers contract against the published prod table, not against any developer's sandbox. `datacontract test --server production` runs in CI after the prod pipeline materializes. For ad-hoc local contract testing against a dev table, a developer can temporarily add a `dev` server to the *local* ODCS file (uncommitted) — the plugin doesn't template it because the schema name would be per-user and uncommittable.
+
+**For stricter isolation** (rare; usually per-user schema in one catalog is enough), the dev target can override `catalog` to a separate `dev_catalog`. The Databricks docs example shows both pieces together.
 
 ## Lifecycle: from scaffold to wired pipeline
 
