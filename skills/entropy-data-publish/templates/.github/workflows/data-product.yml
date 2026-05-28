@@ -11,17 +11,18 @@ jobs:
 
     env:
       # Databricks auth — OAuth M2M with a service principal is recommended.
-      # Set these three secrets on the GitHub repo (or org). PAT auth
-      # (DATABRICKS_TOKEN) still works but is the older path; if you'd rather
-      # use a PAT, replace the CLIENT_ID / CLIENT_SECRET lines with
-      # `DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}`.
-      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      # HOST and CLIENT_ID aren't credentials, so they live as repo variables;
+      # CLIENT_SECRET is the actual secret. PAT auth (DATABRICKS_TOKEN) still
+      # works but is the older path; if you'd rather use a PAT, replace the
+      # CLIENT_ID / CLIENT_SECRET lines with `DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}`.
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
       DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
       ENTROPY_DATA_API_KEY: ${{ secrets.ENTROPY_DATA_API_KEY }}
       ENTROPY_DATA_HOST: "{{API_HOST}}"
       DATACONTRACT_DATABRICKS_TOKEN: ${{ secrets.DATACONTRACT_DATABRICKS_TOKEN }}
-      DATACONTRACT_DATABRICKS_HTTP_PATH: ${{ secrets.DATACONTRACT_DATABRICKS_HTTP_PATH }}
+      # SQL warehouse path is not a credential — repo variable.
+      DATACONTRACT_DATABRICKS_HTTP_PATH: ${{ vars.DATACONTRACT_DATABRICKS_HTTP_PATH }}
 
     steps:
       - uses: actions/checkout@v4

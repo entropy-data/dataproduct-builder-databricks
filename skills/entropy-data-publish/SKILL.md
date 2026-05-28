@@ -208,13 +208,15 @@ Always end with this exact two-part format so the user gets a consistent recap.
 Pre-first-CI-publish (the data product / contract do not exist on the platform yet):
 
 ```bash
-# (1) Set CI secrets so the workflow can authenticate.
-gh secret set DATABRICKS_HOST                --body "<workspace-url>"
-gh secret set DATABRICKS_CLIENT_ID           --body "<service-principal-app-id>"
-gh secret set DATABRICKS_CLIENT_SECRET       --body "<service-principal-secret>"
-gh secret set ENTROPY_DATA_API_KEY           --body "<entropy-data-api-key>"
-gh secret set DATACONTRACT_DATABRICKS_TOKEN  --body "<personal-access-token>"
-gh secret set DATACONTRACT_DATABRICKS_HTTP_PATH --body "/sql/1.0/warehouses/<warehouse-id>"
+# (1) Set CI variables (non-credentials) and secrets (real credentials).
+#     HOST, CLIENT_ID, HTTP_PATH are identifiers / URLs / paths — not
+#     credentials — so they go in variables, not secrets.
+gh variable set DATABRICKS_HOST                   --body "<workspace-url>"
+gh variable set DATABRICKS_CLIENT_ID              --body "<service-principal-app-id>"
+gh variable set DATACONTRACT_DATABRICKS_HTTP_PATH --body "/sql/1.0/warehouses/<warehouse-id>"
+gh secret   set DATABRICKS_CLIENT_SECRET          --body "<service-principal-oauth-secret>"
+gh secret   set ENTROPY_DATA_API_KEY              --body "<entropy-data-api-key>"
+gh secret   set DATACONTRACT_DATABRICKS_TOKEN     --body "<sp-or-personal-access-token>"
 # PAT-auth alternative: swap CLIENT_ID/CLIENT_SECRET in the workflow for a
 # single DATABRICKS_TOKEN secret.
 
