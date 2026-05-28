@@ -109,14 +109,35 @@ servers:
     schema: orders_latest
 ```
 
-Env vars:
+The `datacontract` CLI does not share auth state with the `databricks` CLI — a token must be supplied explicitly via `DATACONTRACT_DATABRICKS_TOKEN`. When surfacing missing credentials to the user, recommend the OAuth-first path; fall back to PAT only when OAuth isn't available.
+
+**Recommended — short-lived OAuth from the already-authenticated `databricks` CLI:**
+
 ```bash
-export DATACONTRACT_DATABRICKS_TOKEN=dapi...               # required
-export DATACONTRACT_DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/abc123def456
+export DATACONTRACT_DATABRICKS_TOKEN=$(databricks auth token | jq -r .access_token)
+export DATACONTRACT_DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/<warehouse-id>
+```
+
+Token is valid ~1h, the literal value never lands in shell history, and a leaked token expires before most attackers notice — much smaller blast radius than a long-lived PAT.
+
+**Fallback — Personal Access Token** (use when `databricks auth token` isn't available: PAT-only profile, OAuth refresh issue, headless shell):
+
+```bash
+export DATACONTRACT_DATABRICKS_TOKEN=dapi...
+export DATACONTRACT_DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/<warehouse-id>
+```
+
+A PAT is long-lived until rotated. Scope it narrowly (read access to the data product's schema is enough) and avoid putting the `export` in `.bashrc`/`.zshrc` — it persists in shell history.
+
+**CI** — use a service-principal-issued token (M2M OAuth, or an SP-owned PAT), not a personal one, with `SELECT` scoped to the data product's schema. Set as a repository secret named `DATACONTRACT_DATABRICKS_TOKEN`.
+
+Optional env vars:
+
+```bash
 export DATACONTRACT_DATABRICKS_SERVER_HOSTNAME=adb-...     # only needed if `host` is not in the server block
 ```
 
-The token is a Databricks personal access token or service-principal OAuth token. Read access on the catalog + schema is enough. `HTTP_PATH` points at a SQL warehouse — not the Lakeflow pipeline cluster.
+`HTTP_PATH` points at a SQL warehouse — not the Lakeflow pipeline cluster.
 
 ### Snowflake
 

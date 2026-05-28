@@ -1,6 +1,6 @@
 {
   "name": "dataproduct-builder-databricks",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Build data products on Databricks with Declarative Automation Bundles and Lakeflow.",
   "author": {
     "name": "Entropy Data",
