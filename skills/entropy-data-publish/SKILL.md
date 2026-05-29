@@ -19,7 +19,7 @@ A bundle is well-integrated with Entropy Data when it has all of:
 | 4 | Bundle layout | `src/{input_ports,transformations,output_ports/v1}/` | Convention that mirrors the data product's lifecycle |
 | 5 | Publish workflow | `.github/workflows/data-product.yml` | CI: `databricks bundle deploy` → `bundle run` → `datacontract test` → publish ODPS + output ODCS |
 | 6 | Git connections | One per ODPS + one per output-port ODCS, registered via `entropy-data dataproducts gitconnection put` and `entropy-data datacontracts gitconnection put` | Lets Entropy Data link the published spec back to the YAML in the repo, and enables `pull` / `push` / `push-pr` from the CLI. Input-port ODCS files are *not* registered — they belong to the upstream data product, which owns its own git connection |
-| 7 | OpenLineage emit | Spark listener config block under `resources/<id>.pipeline.yml` → `configuration:` + `openlineage_url` / `openlineage_api_key` vars in `databricks.yml` | Surfaces pipeline lineage in the platform's Lineage panel. **Classic-cluster pipelines only** — serverless pipelines reject `spark.extraListeners` and rely on the nightly Databricks integration ingest for asset-level lineage instead. The audit flags as **deferred** on classic clusters when missing (Step 4c offers to wire it) and **not applicable** on serverless |
+| 7 | CI lineage emit | `.github/workflows/data-product.yml` step that calls `python3 .github/scripts/emit_lineage.py` after `bundle run`, piping the OpenLineage RunEvent into `entropy-data lineage submit`. Script lives at `.github/scripts/emit_lineage.py` | Surfaces pipeline lineage in the platform's Lineage panel. Driven by the CI workflow because lineage edges only change when code/schema changes — daily refreshes don't add edges. Works on serverless pipelines (the lineage-tracking REST API is independent of the pipeline runtime). The script subsets input schemas to the columns the pipeline actually consumes |
 
 ## How to run this skill
 
@@ -69,7 +69,7 @@ If a `get` returns a 404 (or "not found"), mark that connection as missing. If i
 
 For row 1 (ODPS file), also check that the top-level `customProperties` list contains an entry with `property: "dataProductBuilder"` and `value: "https://github.com/entropy-data/dataproduct-builder-databricks"`. If the file exists but the property is missing, mark the ODPS as **incomplete** with a one-line note ("missing dataProductBuilder customProperty"); Step 4 will add it without touching other fields. Forks of this plugin should substitute their own builder URL in the template before publishing.
 
-For row 7 (OpenLineage emit), first check `resources/<id>.pipeline.yml` for `serverless: true` (or absence of `serverless:`, which defaults to serverless). On serverless pipelines, mark this row as **not applicable** — Databricks rejects `spark.extraListeners` on serverless compute, so OpenLineage emit cannot be wired. Otherwise (classic cluster), check both `databricks.yml` for the `openlineage_url` / `openlineage_api_key` vars and the pipeline file for the `spark.extraListeners: io.openlineage.spark.agent.OpenLineageSparkListener` entry under `configuration:`. Mark as **present** when both sides are wired, **deferred** when the listener block is absent OR the vars are blank (the listener no-ops without credentials), and **incomplete** when one side is wired and the other isn't.
+For row 7 (CI lineage emit), check both files: `.github/workflows/data-product.yml` must contain a step named `Emit lineage to Entropy Data`, and `.github/scripts/emit_lineage.py` must exist. Mark as **present** when both are wired, **missing** when either is absent (Step 4c offers to add both), and **incomplete** when only one of the two is present (likely a partial migration). No per-pipeline configuration is required beyond the existing template placeholders.
 
 Produce a short audit report like:
 
@@ -180,22 +180,20 @@ Notes:
 - These commands fail if the underlying data product / contract does not exist on the platform yet. If you skipped earlier because of "deferred," surface the manual command in Step 5 so the user can run it after the first workflow run. Do not retry-loop.
 - If the audit reported drift (existing connection with different URL/branch/path), confirm with the user before overwriting — `put` is upsert.
 
-#### Step 4c — Configure OpenLineage emit
+#### Step 4c — Add the CI lineage emit step
 
-Only run this sub-step if the audit flagged OpenLineage as **deferred** or **incomplete**. Skip if already wired or if the audit marked it **not applicable** (serverless pipeline — see Step 2 for the detection rule; report "not applicable: serverless pipeline" and move on).
+Only run this sub-step if the audit flagged the CI lineage emit step as **missing**. Skip if already present.
 
 **Ask the user — required confirmation gate:**
 
-> The pipeline isn't currently emitting OpenLineage events to Entropy Data. Wire it up now? This adds a Spark listener so lineage shows up in the platform's Lineage panel. (yes / no)
+> The CI workflow isn't currently emitting lineage to Entropy Data. Add the step now? It calls Databricks's lineage-tracking API after the pipeline run and POSTs an OpenLineage event for each output port so lineage shows up in the platform's Lineage panel. (yes / no)
 
-If **no**, mark as `skipped` in the final report and move on. Do not retry without an explicit ask.
+If **no**, mark as `skipped` in the final report and move on.
 
-If **yes**:
+If **yes**, two files need to be added (copy verbatim, substituting placeholders from the audit's resolved values — do not invent either body):
 
-1. Resolve credentials from the CLI connection: `entropy-data connection get -o json`. Use `host` for `openlineage_url`, `api_key` for `openlineage_api_key`. The plaintext `api_key` is intentional — pass it through, do not log it. See AGENTS.md § Conventions.
-2. In `databricks.yml`, set the var defaults (creating the `openlineage_url` / `openlineage_api_key` blocks under `variables:` if absent — match the init template's shape).
-3. In `resources/<id>.pipeline.yml`, ensure the `configuration:` map includes the OpenLineage listener block (see the init SKILL § Step 4b for the exact YAML — same block).
-4. Run `databricks bundle validate --target dev` to confirm the bundle still parses.
+1. **Workflow step.** Insert the `Emit lineage to Entropy Data` step after the existing `Run Lakeflow pipeline` step in `.github/workflows/data-product.yml`. Source: `${PLUGIN_ROOT}/skills/entropy-data-publish/templates/.github/workflows/data-product.yml`. Substitute `{{DATA_PRODUCT_ID}}`, `{{OUTPUT_PORT_NAME}}`, `{{CATALOG}}`, `{{SCHEMA}}`, `{{TABLE}}`.
+2. **Script.** Copy `${PLUGIN_ROOT}/skills/entropy-data-publish/templates/.github/scripts/emit_lineage.py` to `.github/scripts/emit_lineage.py` in the project. No placeholders — the script reads everything from CLI args supplied by the workflow step.
 
 ### Step 5 — Final report
 
@@ -211,7 +209,7 @@ Always end with this exact two-part format so the user gets a consistent recap.
 | Bundle layout | … | … |
 | Publish workflow | … | … |
 | Git connections | … | … |
-| OpenLineage emit | … | "wired — listener + vars present" / "wired now — added listener + populated vars from CLI connection" / "skipped — user declined" / "deferred — vars present but listener missing (or vice versa)" / "not applicable (serverless pipeline)" |
+| CI lineage emit step | … | "present" / "added — copied from template" / "skipped — user declined" |
 
 **Part 2 — next steps.** This skill sits in the middle of the canonical lifecycle (see AGENTS.md § Lifecycle). Include only the items that apply.
 

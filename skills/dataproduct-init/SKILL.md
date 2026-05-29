@@ -148,52 +148,6 @@ Templates are at `${PLUGIN_ROOT}/skills/dataproduct-init/templates/`. Copy each 
 
 After writing, run `databricks bundle validate --target dev` from the working directory to verify the bundle parses. (Do **not** validate against `prod` at init time — the `prod` target ships with placeholder values for `run_as.service_principal_name` and is expected to fail validation until the user fills them in before their first prod deploy.) If `dev` validation fails, surface the error and ask whether to (a) fix it now or (b) continue to Step 5 and address it after the ODPS/ODCS files exist (some validation errors come from missing schemas the publish skill creates).
 
-### Step 4b — Offer OpenLineage emit (optional, classic clusters only)
-
-Lakeflow's Spark sessions can emit OpenLineage RunEvents to Entropy Data, populating the platform's Lineage panel with the pipeline's input → output edges. **This requires a classic-cluster pipeline (`serverless: false`).** Databricks rejects `spark.extraListeners` on serverless compute at deploy time, and the init template defaults to `serverless: true`.
-
-**Skip this step entirely when the pipeline is serverless.** Read `resources/<DATA_PRODUCT_ID>.pipeline.yml` (or the literal `pipeline.yml` if not yet renamed). If `serverless: true` is set on the pipeline (or `serverless:` is absent — the Lakeflow default is serverless), tell the user:
-
-> OpenLineage Spark listener is not available on serverless pipelines. The Databricks integration's nightly ingest will still surface this data product's tables as Entropy Data assets, but pipeline-level lineage requires switching to `serverless: false` in `resources/<id>.pipeline.yml` — that's a deliberate cost/perf tradeoff and out of scope for this skill.
-
-Then continue to Step 5 without writing anything.
-
-If `serverless: false` is explicitly set, proceed with the gate below.
-
-**Ask the user — required confirmation gate:**
-
-> Enable OpenLineage emit to Entropy Data? This adds a Spark listener to the classic-cluster pipeline so lineage shows up in the platform's Lineage panel. (yes / no / later)
-
-Default: ask explicitly; do not assume. If the user is in auto mode and the gate is skipped, proceed with **no** — OpenLineage requires credentials and is not safe to enable silently.
-
-If **yes**:
-
-1. Resolve the host and API key from the active CLI connection:
-
-   ```
-   entropy-data connection get -o json
-   ```
-
-   Use the `host` field for `openlineage_url` and `api_key` for `openlineage_api_key`. The `api_key` value is intentionally returned in plaintext by this CLI verb — pass it through, do not log it.
-2. Replace the two blank var defaults in `databricks.yml` (`openlineage_url`, `openlineage_api_key`) with the resolved values.
-3. Append the OpenLineage configuration block to `resources/<DATA_PRODUCT_ID>.pipeline.yml` inside the existing `configuration:` map:
-
-   ```yaml
-         configuration:
-           bundle.sourcePath: ${workspace.file_path}/src
-           # OpenLineage emit to Entropy Data — surfaces pipeline lineage in
-           # the platform's Lineage panel. The listener silently no-ops if
-           # var.openlineage_url is blank.
-           spark.extraListeners: io.openlineage.spark.agent.OpenLineageSparkListener
-           spark.openlineage.transport.type: http
-           spark.openlineage.transport.url: ${var.openlineage_url}
-           spark.openlineage.transport.auth.type: api_key
-           spark.openlineage.transport.auth.apiKey: ${var.openlineage_api_key}
-           spark.openlineage.namespace: ${bundle.name}
-   ```
-
-If **no** or **later**: leave the vars blank and skip the configuration block. The user can run `entropy-data-publish` later — its audit will surface the missing OpenLineage config as `deferred` and offer the same fix.
-
 ### Step 5 — Hand off to entropy-data-publish
 
 Now the bundle skeleton is in place. Invoke the **entropy-data-publish** skill (in this same plugin) to add ODPS, ODCS, and the GitHub Actions workflow.
@@ -229,7 +183,6 @@ After both skills have run, end with this two-part recap. Use the shared `Status
 | `.gitignore` | … | new or merged into existing |
 | `src/` layout | … | `input_ports/`, `transformations/`, `output_ports/v1/` with `.gitkeep` placeholders |
 | `databricks bundle validate --target dev` | … | "passed" / "failed: <reason>" |
-| OpenLineage emit | … | "enabled — listener wired in pipeline.yml, vars populated from CLI connection" / "skipped — user declined" / "deferred — `entropy-data-publish` will offer to wire it" / "not applicable (serverless pipeline)" |
 | `prod` target customization required | deferred | Two placeholders must be replaced before the first prod deploy: `run_as.service_principal_name: <fill-in-before-prod-deploy>` (CI service principal app id) and `variables.notifications_email.default: <set-before-prod-deploy>` (pipeline failure alert address). `workspace.root_path` defaults to `/Workspace/Shared/.bundle/<bundle>/prod` — change to an SP-scoped path if `/Workspace/Shared/` is not writable. |
 | `<DATA_PRODUCT_ID>.odps.yaml` (from draft) | … | only when initialized from existing draft: `created` (fetched) or `skipped` (fetch failed) |
 | Output-port ODCS files (from draft) | … | only when initialized from existing draft: `<N>` file(s) under `src/output_ports/v<N>/`, or `skipped` if no contracts were linked |

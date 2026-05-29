@@ -48,6 +48,31 @@ jobs:
       - name: Run Lakeflow pipeline
         run: databricks bundle run {{DATA_PRODUCT_ID}} --target prod
 
+      - name: Emit lineage to Entropy Data
+        # Builds an OpenLineage RunEvent from Unity Catalog lineage metadata
+        # and POSTs it via `entropy-data lineage submit`. The Python script
+        # reads `/api/2.0/lineage-tracking/{table,column}-lineage` to
+        # determine which upstream columns are actually consumed and
+        # subsets each input's schema facet accordingly, so the Lineage
+        # panel shows only the relevant fields per input card.
+        #
+        # The REST API works on serverless and classic pipelines alike —
+        # no Spark listener, no init script, no extra grants beyond what
+        # the prod SP already has.
+        #
+        # Runs only here (CI / code-change path), not on the Lakeflow Job's
+        # daily refresh — lineage edges change only when code or schema
+        # changes, so daily re-emits would add no information.
+        run: |
+          python3 .github/scripts/emit_lineage.py \
+            --data-product-id {{DATA_PRODUCT_ID}} \
+            --output-port-name {{OUTPUT_PORT_NAME}} \
+            --output-table {{CATALOG}}.{{SCHEMA}}.{{TABLE}} \
+          | uv run entropy-data lineage submit \
+              --file - \
+              --data-product-id {{DATA_PRODUCT_ID}} \
+              --output-port-name {{OUTPUT_PORT_NAME}}
+
       - name: Test data contract
         # JUnit output drives the next step's publish to Entropy Data.
         run: |
