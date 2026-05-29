@@ -68,27 +68,25 @@ limit <N>;
 
 Default `N = 20`. Preferred extraction methods, in order:
 
-1. **`databricks sql query`** — runs the statement against the chosen SQL warehouse and returns JSON:
-
-   ```
-   databricks sql query --warehouse-id <warehouse-id> --output json "<sql>"
-   ```
-
-   Capture stdout, parse the `data` rows.
-2. **`databricks api post /api/2.0/sql/statements`** — fallback if the `sql query` subcommand is unavailable in the installed CLI version. Build the body inline:
+1. **`databricks api post /api/2.0/sql/statements`** — primary path. Works on every supported Databricks CLI version. Body shape:
 
    ```json
    { "warehouse_id": "<id>", "statement": "<sql>", "wait_timeout": "30s" }
    ```
 
-   Then poll `/api/2.0/sql/statements/<statement-id>` until `status.state == "SUCCEEDED"`, read `result.data_array`.
-3. **Manual fallback** — if neither works, paste the SQL into the user's hands and ask them to run it in a workspace SQL editor and paste the results back.
+   With `wait_timeout: "30s"` (the API's maximum synchronous wait), most statements return inline. If `.status.state` is `SUCCEEDED` after the POST, read rows from `.result.data_array`. If it returns `PENDING` or `RUNNING`, poll `databricks api get /api/2.0/sql/statements/<statement-id>` every 2s until terminal (`SUCCEEDED` / `FAILED` / `CANCELED`); cap at 5 minutes.
 
-Convert the result rows into a list of objects keyed by **the contract column names** (the names that will be visible to consumers, not the warehouse aliases). Hold the rows in memory as `ROWS` for the next step — do not write a CSV. The `entropy-data example-data put` command takes a YAML/JSON body, not a CSV.
+   Column metadata for naming is at `.manifest.schema.columns[].name` (matches the SELECT order).
+
+2. **`databricks sql query`** — optional alternative if your CLI version (≥ 2.x roadmap) ships this subcommand. Returns the same JSON shape so the post-processing is identical. Skip and use method 1 if it errors with "unknown command".
+
+3. **Manual fallback** — if both fail, paste the SQL into the user's hands and ask them to run it in a workspace SQL editor and paste the results back.
+
+Convert the result rows into a list of objects keyed by **the contract column names** (the names that will be visible to consumers, not the warehouse aliases). Hold the rows in memory as `ROWS` for the next step — do not write a CSV. The `entropy-data example-data put` command takes a JSON or YAML body, not a CSV.
 
 ### Step 4 — Build the example-data document and show the sample
 
-Construct the document the CLI expects:
+Construct the document the CLI expects (shown as YAML; JSON with the same keys is equally valid and is the default this skill writes — see below):
 
 ```yaml
 id: <DATA_PRODUCT_ID>-<OUTPUT_PORT_ID>
@@ -103,7 +101,7 @@ data:
 
 Field semantics confirmed against `entropy-data example-data list -o json`: the ID convention is `<dataProductId>-<outputPortId>`; `schemaName` is the contract's top-level schema/models key (the table name as the contract names it).
 
-Write the document to `examples/<DATA_PRODUCT_ID>-<OUTPUT_PORT_ID>.yaml` (create `examples/` if missing; add `examples/` to `.gitignore` if absent).
+Write the document to `examples/<DATA_PRODUCT_ID>-<OUTPUT_PORT_ID>.json` (create `examples/` if missing; add `examples/` to `.gitignore` if absent). **Default to `.json`** so the script needs only Python's stdlib (`import json`); the init template's `pyproject.toml` does not pin `pyyaml` as a dev dep. If the user explicitly asks for YAML output, write `.yaml` instead — but then ensure `pyyaml` is available first via `uv add --group dev pyyaml`.
 
 Print the first 5 rows of `data:` in a Markdown table. Re-state the dropped columns. **Wait for explicit user confirmation before uploading.**
 
@@ -111,7 +109,7 @@ Print the first 5 rows of `data:` in a Markdown table. Re-state the dropped colu
 
 ```
 entropy-data example-data put <DATA_PRODUCT_ID>-<OUTPUT_PORT_ID> \
-  --file examples/<DATA_PRODUCT_ID>-<OUTPUT_PORT_ID>.yaml
+  --file examples/<DATA_PRODUCT_ID>-<OUTPUT_PORT_ID>.json
 ```
 
 Notes on the CLI shape (verified against `entropy-data example-data put --help`):
@@ -133,13 +131,13 @@ End with this two-part recap. Use the shared `Status` enum (AGENTS.md § Final-r
 | Output port | already present | `<DATA_PRODUCT_ID>/<OUTPUT_PORT_ID>` |
 | Scrub plan | … | `<dropped-count>` dropped, `<hashed-count>` hashed, `<kept-count>` kept |
 | Sample extraction | … | `<rows>` rows via `databricks sql query` (warehouse `<warehouse-id>`, catalog `<catalog>`) |
-| Example-data file | … | `examples/<DATA_PRODUCT_ID>-<OUTPUT_PORT_ID>.yaml` |
+| Example-data file | … | `examples/<DATA_PRODUCT_ID>-<OUTPUT_PORT_ID>.json` (or `.yaml` if explicitly chosen) |
 | Upload to Entropy Data | … | `entropy-data example-data put` succeeded (upsert) |
 
 **Part 2 — next steps.** Bullet list:
 
 - Audit trail: list every column that was dropped or hashed inline so the user has a record of what's now visible to consumers.
-- Local cleanup: offer to delete `examples/<DATA_PRODUCT_ID>-<OUTPUT_PORT_ID>.yaml` if it contains anything the user doesn't want left on disk.
+- Local cleanup: offer to delete `examples/<DATA_PRODUCT_ID>-<OUTPUT_PORT_ID>.{json,yaml}` if it contains anything the user doesn't want left on disk.
 - Visibility: the sample is now visible in Entropy Data under this data product (running the skill again upserts the same id and overwrites the previous sample).
 
 If there is nothing additional to surface, write a single line: `No further action required.`
@@ -149,5 +147,5 @@ If there is nothing additional to surface, write a single line: `No further acti
 - **Hard guardrail: never upload columns classified as PII/sensitive in the contract, and never upload free-text columns by default.** This rule does not bend for "just this once" — the user can override per-column in Step 2, but the default must be drop.
 - **Never use a production target** to extract the sample. Use a dev/test target only. If only prod exists, stop and tell the user to add a dev target first.
 - **No silent uploads.** Steps 2 and 4 both require explicit user confirmation before progressing. Skipping either is a bug.
-- **Don't commit the YAML body.** `examples/` belongs in `.gitignore`. The uploaded copy is the system of record.
+- **Don't commit the sample body** (JSON or YAML). `examples/` belongs in `.gitignore`. The uploaded copy is the system of record.
 - **Idempotent re-runs are fine** — `entropy-data example-data put` is upsert and will overwrite the previous sample for the same id (`<dataProductId>-<outputPortId>`). Mention this in the final report so the user knows the prior sample is gone.
