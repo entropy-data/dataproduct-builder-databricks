@@ -21,7 +21,7 @@ Before running Step 0, print this plan to the user verbatim:
 
 > Running **dataproduct-deploy**. I'll:
 > 1. Pre-checks: confirm this is a bundle and the `databricks` CLI is authenticated.
-> 2. Pick the target (`dev` unless you said otherwise) and the pipeline resource to run.
+> 2. Pick the target (`dev` unless you said otherwise) and the pipeline resource to run. **If the target is `prod`, ask first** — the canonical path is push-and-let-CI-deploy; local prod deploys bypass the prod service principal and any uncommitted changes go straight to prod.
 > 3. `databricks bundle validate` — fail fast if the bundle is broken.
 > 4. `databricks bundle deploy --target <target>` — upload sources and create/update workspace resources.
 > 5. `databricks bundle run <pipeline> --target <target>` — trigger an update of the Lakeflow pipeline.
@@ -40,6 +40,10 @@ Then proceed.
 ### Step 1 — Pick the target and pipeline
 
 - **Target.** Default to `dev` (the `default: true` target in the init template; if a bundle still uses the legacy `default` target name, fall back to that). If the user named another target, use it. If the user did not specify and `databricks.yml` declares multiple targets, list them with their `mode:` and ask which one to use. **Never default to a target with `mode: production` without explicit user confirmation** — production deploys must be a deliberate choice.
+- **Prod-target CI bypass warning — required gate.** When the resolved target has `mode: production`, the canonical path is `git push` → CI: the workflow runs `databricks bundle deploy --target prod` as the prod service principal, leaving an audit trail in `gh run list`. A *local* prod deploy uses the user's identity instead, bypasses the SP, and skips any change that hasn't been committed. Before running Step 2, ask the user:
+  > Deploying to `prod` locally bypasses CI — your user identity will be used instead of the prod service principal, and uncommitted changes go straight to prod. The canonical path is commit + push and let CI deploy. Continue with local deploy? (yes / no)
+
+  Default to **no** if the gate is skipped. If the user has uncommitted changes in tracked files (`git status --porcelain` non-empty for tracked paths), call that out explicitly in the prompt so they know what's about to land. This gate exists for prod targets only — local dev deploys are the normal path.
 - **Pipeline resource.** Read `resources/*.pipeline.yml`. If exactly one pipeline is declared, use it. If multiple, list them and ask which one. Remember the resource key as `PIPELINE_KEY` (e.g. `dp_acme_customer_activity`).
 
 ### Step 2 — Validate

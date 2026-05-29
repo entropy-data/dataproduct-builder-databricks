@@ -19,7 +19,7 @@ A bundle is well-integrated with Entropy Data when it has all of:
 | 4 | Bundle layout | `src/{input_ports,transformations,output_ports/v1}/` | Convention that mirrors the data product's lifecycle |
 | 5 | Publish workflow | `.github/workflows/data-product.yml` | CI: `databricks bundle deploy` → `bundle run` → `datacontract test` → publish ODPS + output ODCS |
 | 6 | Git connections | One per ODPS + one per output-port ODCS, registered via `entropy-data dataproducts gitconnection put` and `entropy-data datacontracts gitconnection put` | Lets Entropy Data link the published spec back to the YAML in the repo, and enables `pull` / `push` / `push-pr` from the CLI. Input-port ODCS files are *not* registered — they belong to the upstream data product, which owns its own git connection |
-| 7 | OpenLineage emit | Spark listener config block under `resources/<id>.pipeline.yml` → `configuration:` + `openlineage_url` / `openlineage_api_key` vars in `databricks.yml` | Surfaces pipeline lineage in the platform's Lineage panel. Optional but recommended; the audit flags as **deferred** when missing and Step 4c offers to wire it |
+| 7 | OpenLineage emit | Spark listener config block under `resources/<id>.pipeline.yml` → `configuration:` + `openlineage_url` / `openlineage_api_key` vars in `databricks.yml` | Surfaces pipeline lineage in the platform's Lineage panel. **Classic-cluster pipelines only** — serverless pipelines reject `spark.extraListeners` and rely on the nightly Databricks integration ingest for asset-level lineage instead. The audit flags as **deferred** on classic clusters when missing (Step 4c offers to wire it) and **not applicable** on serverless |
 
 ## How to run this skill
 
@@ -69,7 +69,7 @@ If a `get` returns a 404 (or "not found"), mark that connection as missing. If i
 
 For row 1 (ODPS file), also check that the top-level `customProperties` list contains an entry with `property: "dataProductBuilder"` and `value: "https://github.com/entropy-data/dataproduct-builder-databricks"`. If the file exists but the property is missing, mark the ODPS as **incomplete** with a one-line note ("missing dataProductBuilder customProperty"); Step 4 will add it without touching other fields. Forks of this plugin should substitute their own builder URL in the template before publishing.
 
-For row 7 (OpenLineage emit), check both `databricks.yml` for the `openlineage_url` / `openlineage_api_key` vars and `resources/<id>.pipeline.yml` for the `spark.extraListeners: io.openlineage.spark.agent.OpenLineageSparkListener` entry under `configuration:`. Mark as **present** when both sides are wired, **deferred** when the listener block is absent OR the vars are blank (the listener no-ops without credentials), and **incomplete** when one side is wired and the other isn't.
+For row 7 (OpenLineage emit), first check `resources/<id>.pipeline.yml` for `serverless: true` (or absence of `serverless:`, which defaults to serverless). On serverless pipelines, mark this row as **not applicable** — Databricks rejects `spark.extraListeners` on serverless compute, so OpenLineage emit cannot be wired. Otherwise (classic cluster), check both `databricks.yml` for the `openlineage_url` / `openlineage_api_key` vars and the pipeline file for the `spark.extraListeners: io.openlineage.spark.agent.OpenLineageSparkListener` entry under `configuration:`. Mark as **present** when both sides are wired, **deferred** when the listener block is absent OR the vars are blank (the listener no-ops without credentials), and **incomplete** when one side is wired and the other isn't.
 
 Produce a short audit report like:
 
@@ -182,7 +182,7 @@ Notes:
 
 #### Step 4c — Configure OpenLineage emit
 
-Only run this sub-step if the audit flagged OpenLineage as **deferred** or **incomplete**. Skip if already wired.
+Only run this sub-step if the audit flagged OpenLineage as **deferred** or **incomplete**. Skip if already wired or if the audit marked it **not applicable** (serverless pipeline — see Step 2 for the detection rule; report "not applicable: serverless pipeline" and move on).
 
 **Ask the user — required confirmation gate:**
 
@@ -211,7 +211,7 @@ Always end with this exact two-part format so the user gets a consistent recap.
 | Bundle layout | … | … |
 | Publish workflow | … | … |
 | Git connections | … | … |
-| OpenLineage emit | … | "wired — listener + vars present" / "wired now — added listener + populated vars from CLI connection" / "skipped — user declined" / "deferred — vars present but listener missing (or vice versa)" |
+| OpenLineage emit | … | "wired — listener + vars present" / "wired now — added listener + populated vars from CLI connection" / "skipped — user declined" / "deferred — vars present but listener missing (or vice versa)" / "not applicable (serverless pipeline)" |
 
 **Part 2 — next steps.** This skill sits in the middle of the canonical lifecycle (see AGENTS.md § Lifecycle). Include only the items that apply.
 

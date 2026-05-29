@@ -16,8 +16,13 @@ variables:
   # when the user opts in at scaffold time; leave blank to disable. The
   # Spark listener block lives in resources/<id>.pipeline.yml under
   # `configuration:` — present only when emit is enabled.
+  #
+  # NOTE: OpenLineage requires `serverless: false` on the pipeline.
+  # Serverless Lakeflow rejects `spark.extraListeners` at deploy time.
+  # The init template defaults to serverless, so OpenLineage is OFF by
+  # default; these vars stay blank until you flip to a classic cluster.
   openlineage_url:
-    description: OpenLineage HTTP endpoint (typically the Entropy Data API host). Blank disables emit.
+    description: OpenLineage HTTP endpoint (typically the Entropy Data API host). Blank disables emit. Requires `serverless: false`.
     default: ""
   openlineage_api_key:
     description: API key sent as bearer token by the OpenLineage HTTP transport.
