@@ -65,7 +65,7 @@ uv run datacontract test <path-to-contract>.odcs.yaml --server <server> --logs
 Where `<path-to-contract>` is the file resolved in Step 1 — typically `src/output_ports/v<N>/<file>.odcs.yaml` for output contracts, or `src/input_ports/<file>.odcs.yaml` for input contracts. The CLI does not care which directory; the role only matters for how Step 4 reports the result.
 
 - `--logs` ensures per-rule failure detail is in stdout — without it the CLI only prints a summary.
-- For every contract you intend to publish in Step 3b, write a JUnit report too: add `--output ./test-results/<contract>.xml --output-format junit`. Skip the file when not publishing.
+- For every contract you intend to publish in Step 3b, write a JSON report too: add `--output ./test-results/<contract>.json --output-format json`. The `entropy-data test-results publish` verb reads only JSON or YAML — JUnit XML is rejected. Skip the file when not publishing.
 - Capture stdout and exit code per contract. Non-zero exit means at least one rule failed.
 
 Run sequentially, not in parallel — the warehouse is the bottleneck and parallel runs muddy the log output.
@@ -83,10 +83,10 @@ If **no**, mark publish as `skipped` and continue to Step 4. Do not publish with
 If **yes**, for each output-port contract tested:
 
 ```
-uv run entropy-data test-results publish --file ./test-results/<contract>.xml
+uv run entropy-data test-results publish --file ./test-results/<contract>.json
 ```
 
-Capture exit code per file. The CLI reads the JUnit XML, infers the contract id and server, and uploads. If a publish fails, surface the CLI error and continue with the rest — don't abort the loop on one failure.
+Capture exit code per file. The CLI reads the JSON, infers the contract id and server, and uploads. If a publish fails, surface the CLI error and continue with the rest — don't abort the loop on one failure.
 
 ### Step 4 — Report
 

@@ -58,7 +58,7 @@ uv run datacontract test src/output_ports/v<N>/<file>.odcs.yaml --server <server
 
 - If the contract has more than one server, ask which one (typically `production`). Default to `all` only if the user explicitly asks.
 - Use `--logs` so failure detail is in the output you read; otherwise the CLI only prints a summary.
-- Always add `--output ./test-results/junit.xml --output-format junit` so the JUnit artifact exists for the optional Step 2b publish.
+- Always add `--output ./test-results/results.json --output-format json` so the JSON artifact exists for the optional Step 2b publish. (`entropy-data test-results publish` reads JSON or YAML; JUnit XML is not accepted.)
 - Capture stdout + exit code as `TEST_RESULT`. Non-zero exit means at least one rule failed; the log section names the failing field/rule.
 
 Pre-reqs the CLI needs (verify before running, fail fast with a clear message if missing):
@@ -81,7 +81,7 @@ If **no**, mark publish as `skipped` in Step 4. Do not publish without an explic
 If **yes**:
 
 ```
-uv run entropy-data test-results publish --file ./test-results/junit.xml
+uv run entropy-data test-results publish --file ./test-results/results.json
 ```
 
 Capture stdout + exit code. On failure, surface the error in the final report but do not retry — the edit and its local test outcome are still the user's primary signal.

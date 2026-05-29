@@ -74,21 +74,25 @@ jobs:
               --output-port-name {{OUTPUT_PORT_NAME}}
 
       - name: Test data contract
-        # JUnit output drives the next step's publish to Entropy Data.
+        # The JSON output below feeds the next step's publish to Entropy Data.
+        # `--output-format json` produces the datacontract-cli native shape
+        # (runId, dataContractId, result, checks[], …) that the
+        # `entropy-data test-results publish` verb consumes — NOT junit XML,
+        # which the publish CLI cannot parse (it reads JSON or YAML only).
         run: |
           mkdir -p test-results
           uv run datacontract test {{CONTRACT_PATH}} \
             --server production \
             --logs \
-            --output ./test-results/junit.xml \
-            --output-format junit
+            --output ./test-results/results.json \
+            --output-format json
 
       - name: Publish test results to Entropy Data
         # Surfaces in the platform's Data Quality panel for the output-port
         # contract. CI is non-interactive — publish is unconditional here.
         # Local runs go through the `datacontract-test` skill's confirmation gate.
         if: always()
-        run: uv run entropy-data test-results publish --file ./test-results/junit.xml
+        run: uv run entropy-data test-results publish --file ./test-results/results.json
 
       - name: Publish data contract
         run: uv run entropy-data datacontracts put {{CONTRACT_ID}} --file {{CONTRACT_PATH}}
